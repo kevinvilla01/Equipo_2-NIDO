@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nuevo voluntario — NIDO</title>
+  <link rel="stylesheet" href="ui.css">
+  <style>
+    .pantalla-formulario .contenedor {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; flex: 1;
+    }
+    .pantalla-formulario .barra {
+      background: transparent; color: var(--color-texto);
+      border-bottom: 1px solid var(--color-borde);
+    }
+    .pantalla-formulario .barra__volver {
+      padding: 0; min-width: var(--alto-control);
+    }
+    .estado-sync {
+      display: inline-flex; align-items: center; gap: var(--e-1);
+      font-size: var(--t-sm); font-weight: 600; color: var(--color-exito);
+      white-space: nowrap;
+    }
+    .estado-sync--sin-conexion { color: var(--color-aviso); }
+
+    .contenido-formulario { width: 100%; max-width: 480px; }
+
+    .switch { position: relative; display: inline-flex; align-items: center; flex: none; }
+    .switch input {
+      position: absolute; width: 44px; height: 44px;
+      top: 50%; left: 50%; transform: translate(-50%, -50%);
+      margin: 0; opacity: 0; cursor: pointer;
+    }
+    .switch__pista {
+      display: inline-block; width: 44px; height: 26px; border-radius: 999px;
+      background: var(--color-borde-fuerte); position: relative;
+      transition: background .15s;
+    }
+    .switch__pista::after {
+      content: ""; position: absolute; top: 3px; left: 3px;
+      width: 20px; height: 20px; border-radius: 50%; background: #fff;
+      transition: transform .15s;
+    }
+    .switch input:checked + .switch__pista { background: var(--color-marca); }
+    .switch input:checked + .switch__pista::after { transform: translateX(18px); }
+    .switch input:focus-visible + .switch__pista {
+      outline: 2px solid var(--color-marca); outline-offset: 2px;
+    }
+
+    .tarjeta-activo p { margin: 0; }
+
+    .sr-solo {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }
+  </style>
+</head>
+<body class="tema-oscuro app pantalla-formulario">
+
+  <header class="barra">
+    <a class="btn btn--fantasma barra__volver" href="voluntarios.html" aria-label="Volver">
+      <span aria-hidden="true">‹</span>
+    </a>
+    <h1 class="barra__titulo">Nuevo voluntario</h1>
+    <div class="barra__acciones">
+      <span class="estado-sync" id="estado-sync">
+        <span aria-hidden="true" id="estado-sync-icono">✓</span>
+        <span id="estado-sync-texto">Sincronizado</span>
+      </span>
+    </div>
+  </header>
+
+  <div class="contenedor">
+    <main class="contenido-formulario">
+      <form id="form-voluntario" novalidate>
+        <div class="campo">
+          <label class="campo__etiqueta" for="nombre-completo">
+            Nombre completo <span class="requerido">*</span>
+          </label>
+          <input class="campo__control" id="nombre-completo" name="nombre" type="text" required>
+          <span class="campo__ayuda">Escribe el nombre completo del participante</span>
+        </div>
+
+        <div class="campo">
+          <label class="campo__etiqueta" for="correo">
+            Correo <span class="requerido">*</span>
+          </label>
+          <input class="campo__control" id="correo" name="correo" type="email" required>
+          <span class="campo__ayuda">Se usa para iniciar sesión</span>
+        </div>
+
+        <div class="campo">
+          <label class="campo__etiqueta" for="rol">
+            Rol <span class="requerido">*</span>
+          </label>
+          <select class="campo__control" id="rol" name="rol" required>
+            <option value="" selected disabled>Selecciona un rol</option>
+            <option value="coordinador">Coordinador</option>
+            <option value="voluntario">Voluntario</option>
+          </select>
+        </div>
+
+        <div class="tarjeta fila entre tarjeta-activo">
+          <p>
+            <span class="tarjeta__titulo">Activo</span><br>
+            <span class="tenue pequeno">Los inactivos no entran; sus registros se conservan</span>
+          </p>
+          <label class="switch">
+            <input type="checkbox" id="activo" name="activo" checked>
+            <span class="switch__pista" aria-hidden="true"></span>
+            <span class="sr-solo">Activo</span>
+          </label>
+        </div>
+
+        <div class="pila mt-4">
+          <button class="btn btn--bloque" type="submit">Guardar</button>
+          <a class="btn btn--fantasma btn--bloque" href="voluntarios.html">Cancelar</a>
+        </div>
+      </form>
+    </main>
+  </div>
+
+  <script>
+    const estadoSync = document.getElementById('estado-sync');
+    const estadoSyncIcono = document.getElementById('estado-sync-icono');
+    const estadoSyncTexto = document.getElementById('estado-sync-texto');
+
+    function actualizarEstadoSincronizacion() {
+      const hayConexion = navigator.onLine;
+      estadoSync.classList.toggle('estado-sync--sin-conexion', !hayConexion);
+      estadoSyncIcono.textContent = hayConexion ? '✓' : '⚠';
+      estadoSyncTexto.textContent = hayConexion ? 'Sincronizado' : 'Sin conexión';
+    }
+
+    window.addEventListener('online', actualizarEstadoSincronizacion);
+    window.addEventListener('offline', actualizarEstadoSincronizacion);
+    actualizarEstadoSincronizacion();
+
+    document.getElementById('form-voluntario').addEventListener('submit', (evento) => {
+      evento.preventDefault();
+    });
+  </script>
+</body>
+</html>
