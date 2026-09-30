@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111111">
+  <title>NIDO</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <script src="/config.js"></script>
+  <style>
+    body { margin: 0; padding: 24px 16px; font-family: system-ui, sans-serif; background: #111111; color: #f5f5f5; }
+    h1 { margin-top: 0; }
+    .ok { color: #4ade80; }
+    .error { color: #f87171; }
+  </style>
+</head>
+<body>
+  <h1>NIDO</h1>
+  <p>Service worker: <strong id="sw-status">comprobando…</strong></p>
+  <p>Conexión a Supabase: <strong id="supabase-status">comprobando…</strong></p>
+
+  <script>
+    function setStatus(id, ok, text) {
+      var el = document.getElementById(id);
+      el.textContent = text;
+      el.className = ok ? 'ok' : 'error';
+    }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then(function () { return navigator.serviceWorker.ready; })
+        .then(function () { setStatus('sw-status', true, 'activo'); })
+        .catch(function (err) {
+          console.warn('Service worker no registrado:', err);
+          setStatus('sw-status', false, 'error');
+        });
+    } else {
+      setStatus('sw-status', false, 'error');
+    }
+
+    var config = window.NIDO_CONFIG || {};
+    if (!config.SUPABASE_URL || !config.SUPABASE_ANON_KEY) {
+      setStatus('supabase-status', false, 'error');
+    } else {
+      fetch(config.SUPABASE_URL + '/auth/v1/health', { headers: { apikey: config.SUPABASE_ANON_KEY } })
+        .then(function (res) { setStatus('supabase-status', res.ok, res.ok ? 'OK' : 'error'); })
+        .catch(function (err) {
+          console.warn('Supabase no responde:', err);
+          setStatus('supabase-status', false, 'error');
+        });
+    }
+  </script>
+</body>
+</html>
