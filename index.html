@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Iniciar sesión — NIDO</title>
+  <link rel="stylesheet" href="estilos/ui.css">
+  <style>
+    body.pantalla-login {
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--e-5);
+    }
+    .login { width: 100%; max-width: 380px; }
+    .login__marca { text-align: center; margin-bottom: var(--e-6); }
+  </style>
+</head>
+<body class="tema-oscuro pantalla-login">
+
+  <main class="login">
+    <div class="login__marca">
+      <img src="img/tortuga_logo.png" alt="">
+      <h1 class="mb-0">NIDO</h1>
+      <p class="tenue pequeno mb-0">Monitoreo y Conservación de Tortugas</p>
+    </div>
+
+    <form id="form-login" novalidate>
+      <div class="campo" id="campo-usuario">
+        <label class="campo__etiqueta" for="usuario">Usuario</label>
+        <input class="campo__control" id="usuario" name="usuario" type="email"
+               autocomplete="username" placeholder="nombre@tortugas.org" required>
+      </div>
+
+      <div class="campo" id="campo-contrasena">
+        <label class="campo__etiqueta" for="contrasena">Contraseña</label>
+        <input class="campo__control" id="contrasena" name="contrasena" type="password"
+               autocomplete="current-password" required>
+        <span class="campo__error oculto" id="error-login"></span>
+      </div>
+
+      <button class="btn btn--bloque" type="submit" id="btn-entrar">Entrar</button>
+    </form>
+
+    <div class="aviso aviso--aviso mt-5 mb-0 oculto" id="aviso-offline">
+      <span><strong>Modo fuera de línea listo.</strong>
+        Inicia sesión localmente usando tus credenciales.</span>
+    </div>
+  </main>
+
+  <script type="module">
+    import { supabase } from './supabase.js';
+
+    const avisoOffline = document.getElementById('aviso-offline');
+
+    function actualizarEstadoConexion() {
+      avisoOffline.classList.toggle('oculto', navigator.onLine);
+    }
+
+    window.addEventListener('online', actualizarEstadoConexion);
+    window.addEventListener('offline', actualizarEstadoConexion);
+    actualizarEstadoConexion();
+
+    const form = document.getElementById('form-login');
+    const campoContrasena = document.getElementById('campo-contrasena');
+    const errorLogin = document.getElementById('error-login');
+    const btnEntrar = document.getElementById('btn-entrar');
+
+    function mostrarError(mensaje) {
+      campoContrasena.classList.add('campo--error');
+      errorLogin.textContent = mensaje;
+      errorLogin.classList.remove('oculto');
+    }
+
+    function limpiarError() {
+      campoContrasena.classList.remove('campo--error');
+      errorLogin.classList.add('oculto');
+    }
+
+    function pantallaSegunRol(rol) {
+      return rol === 'voluntario' ? 'patrullajes' : 'patrullajes';
+    }
+
+    form.addEventListener('submit', async (evento) => {
+      evento.preventDefault();
+      limpiarError();
+
+      const correo = document.getElementById('usuario').value.trim();
+      const contrasena = document.getElementById('contrasena').value;
+
+      btnEntrar.disabled = true;
+      btnEntrar.textContent = 'Entrando…';
+
+      const { data, error } = await supabase
+        .from('usuarios')
+        .select('id, nombre, correo, rol')
+        .eq('correo', correo)
+        .eq('password', contrasena)
+        .maybeSingle();
+
+      btnEntrar.disabled = false;
+      btnEntrar.textContent = 'Entrar';
+
+      if (error) {
+        mostrarError('No se pudo conectar. Revisa tu conexión e intenta de nuevo.');
+        return;
+      }
+
+      if (!data) {
+        mostrarError('Correo o contraseña incorrectos.');
+        return;
+      }
+
+      localStorage.setItem('nido_usuario', JSON.stringify(data));
+
+      window.location.href = pantallaSegunRol(data.rol);
+    });
+  </script>
+</body>
+</html>
