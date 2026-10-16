@@ -1,6 +1,7 @@
 name: Keep-alive Supabase
 
 # Evita que el proyecto gratuito de Supabase se pause por inactividad.
+# Consulta la tabla `keepalive` (una sola fila, lectura pública por RLS).
 on:
   schedule:
     - cron: "0 12 */3 * *"
@@ -10,11 +11,10 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping a la API REST de Supabase
+      - name: Ping a la base de Supabase
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-        # TODO: cuando existan tablas, cambiar por un select a una tabla real,
-        # p. ej. "$SUPABASE_URL/rest/v1/especies?select=id&limit=1".
         run: |
-          curl -fsS -o /dev/null "$SUPABASE_URL/rest/v1/" -H "apikey: $SUPABASE_ANON_KEY"
+          curl -fsS -o /dev/null "$SUPABASE_URL/rest/v1/keepalive?select=id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY"

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nuevo tramo — NIDO</title>
+  <link rel="stylesheet" href="ui.css">
+  <style>
+    .pantalla-formulario .barra {
+      background: transparent; color: var(--color-texto);
+      border-bottom: 1px solid var(--color-borde);
+    }
+    .pantalla-formulario .barra__volver {
+      padding: 0; min-width: var(--alto-control);
+    }
+    .estado-sync {
+      display: inline-flex; align-items: center; gap: var(--e-1);
+      font-size: var(--t-sm); font-weight: 600; color: var(--color-exito);
+      white-space: nowrap;
+    }
+    .estado-sync--sin-conexion { color: var(--color-aviso); }
+
+    .pantalla-formulario .contenedor {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; flex: 1;
+    }
+
+    .contenido-formulario { width: 100%; max-width: 480px; }
+  </style>
+</head>
+<body class="tema-oscuro app pantalla-formulario">
+
+  <header class="barra">
+    <a class="btn btn--fantasma barra__volver" href="catalogos.html" aria-label="Volver">
+      <span aria-hidden="true">‹</span>
+    </a>
+    <h1 class="barra__titulo">Nuevo tramo</h1>
+    <div class="barra__acciones">
+      <span class="estado-sync" id="estado-sync">
+        <span aria-hidden="true" id="estado-sync-icono">✓</span>
+        <span id="estado-sync-texto">Sincronizado</span>
+      </span>
+    </div>
+  </header>
+
+  <div class="contenedor">
+    <main class="contenido-formulario">
+      <form id="form-tramo" novalidate>
+        <div class="campo">
+          <label class="campo__etiqueta" for="nombre-tramo">
+            Nombre del tramo <span class="requerido">*</span>
+          </label>
+          <input class="campo__control" id="nombre-tramo" name="nombre" type="text" required>
+          <span class="campo__ayuda">Debe ser único en el campamento</span>
+        </div>
+
+        <div class="campo">
+          <label class="campo__etiqueta" for="km-inicial">
+            Kilómetro inicial <span class="requerido">*</span>
+          </label>
+          <input class="campo__control" id="km-inicial" name="km_inicial" type="number"
+                 step="0.1" min="0" inputmode="decimal" required>
+          <span class="campo__ayuda">Ubicación de inicio del recorrido</span>
+        </div>
+
+        <div class="campo">
+          <label class="campo__etiqueta" for="km-final">
+            Kilómetro final <span class="requerido">*</span>
+          </label>
+          <input class="campo__control" id="km-final" name="km_final" type="number"
+                 step="0.1" min="0" inputmode="decimal" required>
+          <span class="campo__ayuda">Punto de finalización</span>
+        </div>
+
+        <div class="pila mt-4">
+          <button class="btn btn--bloque" type="submit">Guardar</button>
+          <a class="btn btn--fantasma btn--bloque" href="catalogos.html">Cancelar</a>
+        </div>
+      </form>
+    </main>
+  </div>
+
+  <script>
+    const estadoSync = document.getElementById('estado-sync');
+    const estadoSyncIcono = document.getElementById('estado-sync-icono');
+    const estadoSyncTexto = document.getElementById('estado-sync-texto');
+
+    function actualizarEstadoSincronizacion() {
+      const hayConexion = navigator.onLine;
+      estadoSync.classList.toggle('estado-sync--sin-conexion', !hayConexion);
+      estadoSyncIcono.textContent = hayConexion ? '✓' : '⚠';
+      estadoSyncTexto.textContent = hayConexion ? 'Sincronizado' : 'Sin conexión';
+    }
+
+    window.addEventListener('online', actualizarEstadoSincronizacion);
+    window.addEventListener('offline', actualizarEstadoSincronizacion);
+    actualizarEstadoSincronizacion();
+
+    document.getElementById('form-tramo').addEventListener('submit', (evento) => {
+      evento.preventDefault();
+    });
+  </script>
+</body>
+</html>

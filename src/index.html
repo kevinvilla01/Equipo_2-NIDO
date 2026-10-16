@@ -19,6 +19,7 @@
   <h1>NIDO</h1>
   <p>Service worker: <strong id="sw-status">comprobando…</strong></p>
   <p>Conexión a Supabase: <strong id="supabase-status">comprobando…</strong></p>
+  <p><a href="/nuevo-nido.html" style="color: inherit;">Registrar nido</a></p>
 
   <script>
     function setStatus(id, ok, text) {
@@ -50,6 +51,11 @@
           setStatus('supabase-status', false, 'error');
         });
     }
+  </script>
+  <script type="module">
+    // Deja tramos y especies en IndexedDB desde la entrada para poder registrar nidos sin señal.
+    import { descargarCatalogos } from '/js/catalogos.js';
+    descargarCatalogos();
   </script>
 </body>
 </html>
