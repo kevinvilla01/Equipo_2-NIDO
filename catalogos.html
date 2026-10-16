@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Catálogos — NIDO</title>
-  <link rel="stylesheet" href="ui.css">
+    <link rel="icon" href="src/icons/tortuga_logo.png">
+  <link rel="stylesheet" href="estilos/ui.css">
   <style>
     .pantalla-catalogos .contenedor { display: flex; flex-direction: column; }
 
@@ -23,7 +24,6 @@
     }
     .estado-sync--sin-conexion { color: var(--color-aviso); }
 
-    /* Renglón de catálogo: una tarjeta usada como fila con chevron */
     .fila-catalogo { text-decoration: none; color: inherit; }
     .fila-catalogo__texto {
       display: flex; flex-direction: column; gap: var(--e-1); min-width: 0;
@@ -40,6 +40,12 @@
       padding: var(--e-4); padding-bottom: calc(var(--e-4) + env(safe-area-inset-bottom));
       background: var(--color-fondo);
       border-top: 1px solid var(--color-borde);
+    }
+
+    .tema-oscuro .esqueleto {
+      background: linear-gradient(90deg,
+                  var(--color-borde) 25%, var(--color-borde-fuerte) 50%, var(--color-borde) 75%);
+      background-size: 200% 100%;
     }
   </style>
 </head>
@@ -81,7 +87,9 @@
     </div>
   </div>
 
-  <script>
+  <script type="module">
+    import { supabase } from './scripts/supabase.js';
+
     const estadoSync = document.getElementById('estado-sync');
     const estadoSyncIcono = document.getElementById('estado-sync-icono');
     const estadoSyncTexto = document.getElementById('estado-sync-texto');
@@ -89,7 +97,6 @@
     function actualizarEstadoSincronizacion() {
       const hayConexion = navigator.onLine;
       estadoSync.classList.toggle('estado-sync--sin-conexion', !hayConexion);
-      estadoSyncIcono.textContent = hayConexion ? '✓' : '⚠';
       estadoSyncTexto.textContent = hayConexion ? 'Sincronizado' : 'Sin conexión';
     }
 
@@ -115,13 +122,24 @@
       });
     });
 
+    if (window.location.hash === '#especies') {
+      document.getElementById('tab-especies').click();
+    }
+
+    function escaparHTML(valor) {
+      const div = document.createElement('div');
+      div.textContent = valor;
+      return div.innerHTML;
+    }
+
     function renderizarCatalogo(contenedor, items, textos) {
+      contenedor.removeAttribute('aria-busy');
       contenedor.innerHTML = '';
 
       if (items.length === 0) {
         contenedor.innerHTML = `
           <div class="estado-vacio">
-            <div class="estado-vacio__icono" aria-hidden="true">${textos.icono}</div>
+            <div class="estado-vacio__icono" aria-hidden="true"><img src="${textos.icono}" alt="" width="48" height="48"></div>
             <p class="estado-vacio__titulo">${textos.tituloVacio}</p>
             <p class="estado-vacio__texto">${textos.textoVacio}</p>
           </div>`;
@@ -130,15 +148,15 @@
 
       items.forEach((item) => {
         const fila = document.createElement('a');
-        fila.href = '#';
+        fila.href = item.href || '#';
         fila.className = 'tarjeta fila entre fila-catalogo' +
           (item.conflicto ? ' fila-catalogo--conflicto' : '');
         fila.innerHTML = `
           <div class="fila-catalogo__texto">
-            <span class="tarjeta__titulo">${item.titulo}</span>
-            <span class="tenue pequeno">${item.detalle}</span>
+            <span class="tarjeta__titulo">${escaparHTML(item.titulo)}</span>
+            <span class="tenue pequeno">${escaparHTML(item.detalle)}</span>
             ${item.conflicto
-              ? `<span class="pequeno texto-conflicto">${item.mensajeConflicto}</span>`
+              ? `<span class="pequeno texto-conflicto">${escaparHTML(item.mensajeConflicto)}</span>`
               : ''}
           </div>
           <span class="fila-catalogo__chevron" aria-hidden="true">›</span>`;
@@ -146,20 +164,96 @@
       });
     }
 
-    const datosTramos = [];
-    const datosEspecies = [];
-
-    renderizarCatalogo(document.getElementById('lista-tramos'), datosTramos, {
-      icono: '🧭',
+    const textosTramos = {
+      icono: 'src/icons/brujula.png',
       tituloVacio: 'Todavía no hay tramos registrados',
       textoVacio: 'Cuando registres el primero, aparecerá aquí con su kilometraje.'
-    });
+    };
 
-    renderizarCatalogo(document.getElementById('lista-especies'), datosEspecies, {
-      icono: '🐢',
+    const textosEspecies = {
+      icono: 'src/icons/tortuga.png',
       tituloVacio: 'Todavía no hay especies registradas',
       textoVacio: 'Cuando registres la primera, aparecerá aquí con sus días de incubación.'
-    });
+    };
+
+    function mostrarCargando(contenedor) {
+      contenedor.setAttribute('aria-busy', 'true');
+      contenedor.innerHTML = `
+        <div class="esqueleto esqueleto--tarjeta" aria-hidden="true"></div>
+        <div class="esqueleto esqueleto--tarjeta" aria-hidden="true"></div>`;
+    }
+
+    function mostrarError(contenedor, titulo, alReintentar) {
+      contenedor.removeAttribute('aria-busy');
+      contenedor.innerHTML = `
+        <div class="estado-error">
+          <p class="estado-error__titulo">${titulo}</p>
+          <p class="estado-error__texto">
+            No se pudieron traer los datos. Revisa tu conexión; si el problema
+            sigue, avisa al equipo.
+          </p>
+          <button class="btn btn--secundario" type="button">Reintentar</button>
+        </div>`;
+      contenedor.querySelector('button').addEventListener('click', alReintentar);
+    }
+
+    async function cargarTramos() {
+      const contenedor = document.getElementById('lista-tramos');
+      mostrarCargando(contenedor);
+
+      const { data, error } = await supabase
+        .from('tramos')
+        .select('id, nombre, kilometro_inicial, kilometro_final, referencia')
+        .order('creado_en', { ascending: false });
+
+      if (error) {
+        console.error('Error de Supabase al leer tramos:', error);
+        mostrarError(contenedor, 'No pudimos cargar los tramos', cargarTramos);
+        return;
+      }
+
+      const items = data.map((tramo) => ({
+        href: `alta-tramo.html?id=${tramo.id}`,
+        titulo: tramo.nombre,
+        detalle: [
+          `km ${tramo.kilometro_inicial}–${tramo.kilometro_final}`,
+          tramo.referencia
+        ].filter(Boolean).join(' · ')
+      }));
+
+      renderizarCatalogo(contenedor, items, textosTramos);
+    }
+
+    async function cargarEspecies() {
+      const contenedor = document.getElementById('lista-especies');
+      mostrarCargando(contenedor);
+
+      const { data, error } = await supabase
+        .from('especies')
+        .select('id, nombre_comun, nombre_cientifico, dias_incubacion_estimados')
+        .order('creado_en', { ascending: false });
+
+      if (error) {
+        console.error('Error de Supabase al leer especies:', error);
+        mostrarError(contenedor, 'No pudimos cargar las especies', cargarEspecies);
+        return;
+      }
+
+      const items = data.map((especie) => ({
+        href: `alta-especie.html?id=${especie.id}`,
+        titulo: especie.nombre_cientifico
+          ? `${especie.nombre_cientifico} (${especie.nombre_comun})`
+          : especie.nombre_comun,
+        detalle: especie.dias_incubacion_estimados != null
+          ? `${especie.dias_incubacion_estimados} días de incubación`
+          : 'Sin días de incubación registrados'
+      }));
+
+      renderizarCatalogo(contenedor, items, textosEspecies);
+    }
+
+    cargarTramos();
+    cargarEspecies();
   </script>
 </body>
 </html>
