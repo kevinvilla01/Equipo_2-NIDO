@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nueva Patrulla</title>
+<link rel="stylesheet" href="../estilos/estilos_registrar_patrulla.css">
+<script type="module" src="../back/registrar_patrulla.js"></script>
+
+</head>
+<body>
+
+  <div class="phone">
+    <div class="content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <a href="patrullajes.html" class="back-btn" aria-label="Volver">
+            <svg viewBox="0 0 24 24" class="icon-back"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+          <h1>Nueva Patrulla</h1>
+        </div>
+        <span class="sync-status">
+          <svg viewBox="0 0 24 24" class="icon-check"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Sincronizado
+        </span>
+      </header>
+
+      <main class="form-content">
+
+        <div class="field">
+          <label for="hora-inicio">Hora de inicio</label>
+          <input type="time" id="hora-inicio" value="">
+          <p class="hint">Hora local de inicio de jornada</p>
+        </div>
+
+
+        <div class="field">
+          <label for="tramo">Tramo a patrullar</label>
+          <div class="select-wrap">
+            <select id="tramo" >
+              <option value="">Seleccionar</option>
+            </select>
+            <svg viewBox="0 0 24 24" class="icon-chevron"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="fecha">Fecha</label>
+          <input type="date" id="fecha">
+          <p class="hint">Día en que se realiza el patrullaje</p>
+        </div>
+
+
+        <div class="field">
+          <label>Voluntarios</label>
+          <div id="voluntarios-list" class="checkbox-list">
+            <!-- aquí se insertan los checkboxes por JS -->
+          </div>
+        </div>
+
+      </main>
+
+      <div class="cta-wrap">
+        <button class="cta" id="btn-guardar">Guardar patrullaje</button>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

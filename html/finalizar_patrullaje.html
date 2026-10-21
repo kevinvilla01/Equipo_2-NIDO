@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finalizar Patrullaje</title>
+<link rel="stylesheet" href="../estilos/estilos_finalizar_patrullaje.css">
+</head>
+<body>
+
+  <div class="phone">
+    <div class="content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <a href="patrullajes.html" class="back-btn" aria-label="Volver">
+            <svg viewBox="0 0 24 24" class="icon-back"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+          <h1>Finalizar Patrullaje</h1>
+        </div>
+        <span class="sync-status">
+          <svg viewBox="0 0 24 24" class="icon-check"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Sincronizado
+        </span>
+      </header>
+
+      <main class="page-content">
+
+        <!-- Datos ya registrados: solo lectura -->
+        <section class="summary-card">
+          <div class="summary-row">
+            <span class="summary-label">Fecha</span>
+            <span class="summary-value"id="d-fecha"></span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">Hora de inicio</span>
+            <span class="summary-value" id="d-inicio"></span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">Tramo</span>
+            <span class="summary-value" id="d-tramo"></span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">Voluntarios</span>
+            <span class="summary-value" id="d-voluntarios"></span>
+          </div>
+        </section>
+
+        <h2 class="section-title">Datos de cierre</h2>
+
+        <form class="form-fields">
+
+          <div class="field">
+            <label for="hora-fin">Hora de fin</label>
+            <input type="time" id="hora-fin">
+          </div>
+
+          <div class="field">
+            <label for="marea">Marea</label>
+            <div class="select-wrap">
+              <select id="marea">
+                <option value="" disabled selected>Selecciona una opción</option>
+                <option>Baja</option>
+                <option>Media</option>
+                <option>Alta</option>
+              </select>
+              <svg viewBox="0 0 24 24" class="icon-chevron"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="fase-lunar">Fase lunar</label>
+            <div class="select-wrap">
+              <select id="fase-lunar">
+                <option value="" disabled selected>Selecciona una opción</option>
+                <option>Luna nueva</option>
+                <option>Luna creciente</option>
+                <option>Cuarto creciente</option>
+                <option>Gibosa creciente</option>
+                <option>Luna llena</option>
+                <option>Gibosa menguante</option>
+                <option>Cuarto menguante</option>
+                <option>Menguante</option>
+              </select>
+              <svg viewBox="0 0 24 24" class="icon-chevron"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="clima">Clima</label>
+            <div class="select-wrap">
+              <select id="clima">
+                <option value="" disabled selected>Selecciona una opción</option>
+                <option>Despejado</option>
+                <option>Nublado</option>
+                <option>Lluvioso</option>
+                <option>Ventoso</option>
+              </select>
+              <svg viewBox="0 0 24 24" class="icon-chevron"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="observaciones">Observaciones</label>
+            <textarea id="observaciones" rows="4" placeholder="Escribe cualquier novedad del recorrido..."></textarea>
+          </div>
+
+        </form>
+
+      </main>
+
+      <div class="cta-wrap">
+        <button class="cta" id="btn-finalizar">Finalizar patrullaje</button>
+        <button class="cta-delete" id="btn-eliminar">Eliminar patrullaje</button>
+      </div>
+
+    </div>
+  </div>
+
+      <script type="module" src="../back/finalizar_patrullaje.js"></script>
+
+</body>
+</html>

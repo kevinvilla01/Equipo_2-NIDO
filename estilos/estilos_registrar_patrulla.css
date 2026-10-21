@@ -1,0 +1,347 @@
+:root {
+  --bg: #0c0c11;
+  --card-bg: #17171e;
+  --card-border: #24242e;
+  --accent-red: #e0504f;
+  --accent-green: #33c26a;
+  --text-primary: #f4f4f6;
+  --text-secondary: #9a9aa5;
+  --divider: #2a2a34;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--text-primary);
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px 12px;
+}
+
+.phone {
+  width: 100%;
+  max-width: 400px;
+  background: var(--bg);
+  border-radius: 28px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 640px;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Top bar */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 20px 16px;
+  gap: 10px;
+}
+
+.topbar h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.back-btn {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  padding: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+}
+
+.icon-back {
+  width: 20px;
+  height: 20px;
+}
+
+.sync-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.8rem;
+  color: var(--accent-green);
+  white-space: nowrap;
+}
+
+.icon-check {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* Form fields */
+.form-content {
+  flex: 1;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 4px 16px 16px;
+  overflow-y: auto;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.field input,
+.field select {
+  width: 100%;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 1.05rem;
+  color: var(--text-primary);
+  font-family: inherit;
+}
+
+.field input:focus,
+.field select:focus {
+  outline: none;
+  border-color: var(--accent-red);
+}
+
+.field input[type="time"],
+.field input[type="date"] {
+  color-scheme: dark;
+}
+
+.field input[type="time"]::-webkit-calendar-picker-indicator,
+.field input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+  opacity: 0.8;
+}
+
+
+
+
+
+
+.multi-select {
+  position: relative;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.multi-select.open {
+  border-color: var(--accent-red);
+}
+
+.multi-select-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: transparent;
+  border: none;
+  padding: 14px 16px;
+  font-size: 1.05rem;
+  font-family: inherit;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.multi-select-trigger .icon-chevron {
+  position: static;
+  flex-shrink: 0;
+  color: var(--accent-red);
+  transition: transform 0.15s ease;
+}
+
+.multi-select.open .multi-select-trigger .icon-chevron {
+  transform: rotate(180deg);
+}
+
+.multi-select-panel {
+  display: none;
+  flex-direction: column;
+  border-top: 1px solid var(--divider);
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.multi-select.open .multi-select-panel {
+  display: flex;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+}
+
+.checkbox-item span {
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.checkbox-item input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  accent-color: var(--accent-red);
+  cursor: pointer;
+}
+
+
+
+
+
+
+.hint {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.select-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.select-wrap select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 44px;
+  cursor: pointer;
+}
+
+.icon-chevron {
+  position: absolute;
+  right: 16px;
+  width: 18px;
+  height: 18px;
+  color: var(--accent-red);
+  pointer-events: none;
+}
+
+/* CTA */
+.cta-wrap {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 8px 16px 16px;
+}
+
+.cta {
+  width: 100%;
+  background: var(--accent-red);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 16px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.cta:hover,
+.cta:focus-visible {
+  filter: brightness(1.08);
+}
+
+.cta:active {
+  filter: brightness(0.95);
+}
+
+/* Small phones: tighten up */
+@media (max-width: 340px) {
+  .topbar h1 {
+    font-size: 1.3rem;
+  }
+}
+
+/* Tablet: keep the phone card but give it room to breathe */
+@media (min-width: 480px) and (max-width: 899px) {
+  body {
+    padding: 48px 16px;
+  }
+  .phone {
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--card-border);
+  }
+}
+
+/* Desktop: fill the whole screen. No sidebar on this page (no tabbar),
+   so the background/header stretch edge to edge but the form itself
+   stays at a comfortable, readable width, centered */
+@media (min-width: 900px) {
+  body {
+    padding: 0;
+  }
+
+  .phone {
+    width: 100vw;
+    height: 100vh;
+    max-width: none;
+    min-height: 0;
+    border-radius: 0;
+  }
+
+  .topbar {
+    padding: 32px 40px 20px;
+  }
+
+  .topbar h1 {
+    font-size: 1.9rem;
+  }
+
+  .form-content {
+    padding: 24px 40px 40px;
+    gap: 28px;
+  }
+
+  .field input,
+  .field select {
+    padding: 16px 18px;
+    font-size: 1.1rem;
+  }
+
+  .cta-wrap {
+    max-width: 480px;
+    padding: 16px 0 40px;
+  }
+}
