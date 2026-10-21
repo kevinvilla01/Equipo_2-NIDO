@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Finalizar patrullaje — NIDO</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/tortuga_logo.png">
+  <link rel="stylesheet" href="/css/ui.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script src="/config.js"></script>
+  <script src="/vendor/supabase.js"></script>
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body class="tema-oscuro app pantalla-formulario con-nav-inferior">
+
+  <header class="barra">
+    <a class="btn btn--fantasma barra__volver" href="/patrullajes.html" aria-label="Volver">
+      <span aria-hidden="true">‹</span>
+    </a>
+    <h1 class="barra__titulo">Finalizar patrullaje</h1>
+    <div class="barra__acciones">
+      <span class="estado-sync" id="estado-sync">
+        <span aria-hidden="true" id="estado-sync-icono">✓</span>
+        <span id="estado-sync-texto">En línea</span>
+      </span>
+    </div>
+  </header>
+
+  <div class="franja-offline" role="status">Sin conexión. Necesitas señal para finalizar el patrullaje.</div>
+
+  <div class="contenedor">
+    <main class="contenido-formulario">
+      <div class="aviso aviso--error oculto" id="aviso-formulario" role="alert"></div>
+
+      <!-- Datos ya registrados: solo lectura -->
+      <section class="tarjeta mb-5" aria-label="Datos del patrullaje">
+        <dl class="datos">
+          <dt>Fecha</dt><dd id="d-fecha">—</dd>
+          <dt>Hora de inicio</dt><dd id="d-inicio">—</dd>
+          <dt>Tramo</dt><dd id="d-tramo">—</dd>
+          <dt>Voluntarios</dt><dd id="d-voluntarios">—</dd>
+        </dl>
+      </section>
+
+      <h2>Datos de cierre</h2>
+
+      <div id="form-finalizar">
+        <div class="campo">
+          <label class="campo__etiqueta" for="hora-fin">
+            Hora de fin <span class="requerido">*</span>
+          </label>
+          <input class="campo__control" type="time" id="hora-fin">
+        </div>
+
+        <div class="campo">
+          <label class="campo__etiqueta" for="marea">
+            Marea <span class="requerido">*</span>
+          </label>
+          <select class="campo__control" id="marea">
+            <option value="" disabled selected>Selecciona una opción</option>
+            <option>Baja</option>
+            <option>Media</option>
+            <option>Alta</option>
+          </select>
+        </div>
+
+        <div class="campo">
+          <label class="campo__etiqueta" for="fase-lunar">
+            Fase lunar <span class="requerido">*</span>
+          </label>
+          <select class="campo__control" id="fase-lunar">
+            <option value="" disabled selected>Selecciona una opción</option>
+            <option>Luna nueva</option>
+            <option>Luna creciente</option>
+            <option>Cuarto creciente</option>
+            <option>Gibosa creciente</option>
+            <option>Luna llena</option>
+            <option>Gibosa menguante</option>
+            <option>Cuarto menguante</option>
+            <option>Menguante</option>
+          </select>
+        </div>
+
+        <div class="campo">
+          <label class="campo__etiqueta" for="clima">
+            Clima <span class="requerido">*</span>
+          </label>
+          <select class="campo__control" id="clima">
+            <option value="" disabled selected>Selecciona una opción</option>
+            <option>Despejado</option>
+            <option>Nublado</option>
+            <option>Lluvioso</option>
+            <option>Ventoso</option>
+          </select>
+        </div>
+
+        <div class="campo">
+          <label class="campo__etiqueta" for="observaciones">
+            Observaciones <span class="requerido">*</span>
+          </label>
+          <textarea class="campo__control" id="observaciones" rows="4"
+                    placeholder="Escribe cualquier novedad del recorrido..."></textarea>
+        </div>
+      </div>
+
+      <div class="pila mt-4">
+        <button class="btn btn--bloque" type="button" id="btn-finalizar">Finalizar patrullaje</button>
+        <button class="btn btn--peligro btn--bloque" type="button" id="btn-eliminar">Eliminar patrullaje</button>
+      </div>
+    </main>
+  </div>
+
+  <dialog class="dialogo" id="dialogo-eliminar">
+    <div class="dialogo__cuerpo">
+      <h3 class="dialogo__titulo">¿Eliminar este patrullaje?</h3>
+      <p class="dialogo__texto">Se borran también sus voluntarios asignados. Esta acción no se puede deshacer.</p>
+      <div class="dialogo__pie">
+        <button class="btn btn--secundario" type="button" id="btn-dialogo-volver">Volver</button>
+        <button class="btn btn--peligro" type="button" id="btn-dialogo-confirmar">Sí, eliminar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <nav class="nav-inferior" data-activa="patrullaje"></nav>
+
+  <script type="module" src="/js/finalizar-patrullaje.js"></script>
+</body>
+</html>

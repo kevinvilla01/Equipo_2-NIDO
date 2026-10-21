@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111111">
+  <title>Estado — NIDO</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/tortuga_logo.png">
+  <link rel="stylesheet" href="/css/ui.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script src="/config.js"></script>
+</head>
+<body class="tema-oscuro app">
+  <header class="barra">
+    <a class="btn btn--fantasma barra__volver" href="/patrullajes.html" aria-label="Volver">
+      <span aria-hidden="true">‹</span>
+    </a>
+    <h1 class="barra__titulo">Estado de la app</h1>
+  </header>
+
+  <main class="contenedor">
+    <div class="tarjeta">
+      <dl class="datos">
+        <dt>Service worker</dt><dd><strong id="sw-status">comprobando…</strong></dd>
+        <dt>Conexión a Supabase</dt><dd><strong id="supabase-status">comprobando…</strong></dd>
+      </dl>
+    </div>
+  </main>
+
+  <script>
+    function setStatus(id, ok, text) {
+      var el = document.getElementById(id);
+      el.textContent = text;
+      el.style.color = ok ? 'var(--color-exito)' : 'var(--color-error)';
+    }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then(function () { return navigator.serviceWorker.ready; })
+        .then(function () { setStatus('sw-status', true, 'activo'); })
+        .catch(function (err) {
+          console.warn('Service worker no registrado:', err);
+          setStatus('sw-status', false, 'error');
+        });
+    } else {
+      setStatus('sw-status', false, 'error');
+    }
+
+    var config = window.NIDO_CONFIG || {};
+    if (!config.SUPABASE_URL || !config.SUPABASE_ANON_KEY) {
+      setStatus('supabase-status', false, 'error');
+    } else {
+      fetch(config.SUPABASE_URL + '/auth/v1/health', { headers: { apikey: config.SUPABASE_ANON_KEY } })
+        .then(function (res) { setStatus('supabase-status', res.ok, res.ok ? 'OK' : 'error'); })
+        .catch(function (err) {
+          console.warn('Supabase no responde:', err);
+          setStatus('supabase-status', false, 'error');
+        });
+    }
+  </script>
+</body>
+</html>

@@ -1,61 +1,116 @@
 <!doctype html>
-<html lang="es">
+<html lang="es-MX">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#111111">
-  <title>NIDO</title>
+  <title>Iniciar sesión — NIDO</title>
   <link rel="manifest" href="/manifest.json">
-  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/icons/tortuga_logo.png">
+  <link rel="stylesheet" href="/css/ui.css">
+  <link rel="stylesheet" href="/css/app.css">
   <script src="/config.js"></script>
-  <style>
-    body { margin: 0; padding: 24px 16px; font-family: system-ui, sans-serif; background: #111111; color: #f5f5f5; }
-    h1 { margin-top: 0; }
-    .ok { color: #4ade80; }
-    .error { color: #f87171; }
-  </style>
+  <script src="/vendor/supabase.js"></script>
+  <script type="module" src="/js/app.js"></script>
 </head>
-<body>
-  <h1>NIDO</h1>
-  <p>Service worker: <strong id="sw-status">comprobando…</strong></p>
-  <p>Conexión a Supabase: <strong id="supabase-status">comprobando…</strong></p>
-  <p><a href="/nuevo-nido.html" style="color: inherit;">Registrar nido</a></p>
+<body class="tema-oscuro pantalla-login">
 
-  <script>
-    function setStatus(id, ok, text) {
-      var el = document.getElementById(id);
-      el.textContent = text;
-      el.className = ok ? 'ok' : 'error';
-    }
+  <main class="login">
+    <div class="login__marca">
+      <img src="/icons/tortuga_logo.png" alt="" width="39" height="24">
+      <h1 class="mb-0">NIDO</h1>
+      <p class="tenue pequeno mb-0">Monitoreo y Conservación de Tortugas</p>
+    </div>
 
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js')
-        .then(function () { return navigator.serviceWorker.ready; })
-        .then(function () { setStatus('sw-status', true, 'activo'); })
-        .catch(function (err) {
-          console.warn('Service worker no registrado:', err);
-          setStatus('sw-status', false, 'error');
-        });
-    } else {
-      setStatus('sw-status', false, 'error');
-    }
+    <form id="form-login" novalidate>
+      <div class="campo" id="campo-usuario">
+        <label class="campo__etiqueta" for="usuario">Usuario</label>
+        <input class="campo__control" id="usuario" name="usuario" type="email"
+               autocomplete="username" placeholder="nombre@tortugas.org" required>
+      </div>
 
-    var config = window.NIDO_CONFIG || {};
-    if (!config.SUPABASE_URL || !config.SUPABASE_ANON_KEY) {
-      setStatus('supabase-status', false, 'error');
-    } else {
-      fetch(config.SUPABASE_URL + '/auth/v1/health', { headers: { apikey: config.SUPABASE_ANON_KEY } })
-        .then(function (res) { setStatus('supabase-status', res.ok, res.ok ? 'OK' : 'error'); })
-        .catch(function (err) {
-          console.warn('Supabase no responde:', err);
-          setStatus('supabase-status', false, 'error');
-        });
-    }
-  </script>
+      <div class="campo" id="campo-contrasena">
+        <label class="campo__etiqueta" for="contrasena">Contraseña</label>
+        <input class="campo__control" id="contrasena" name="contrasena" type="password"
+               autocomplete="current-password" required>
+        <span class="campo__error oculto" id="error-login"></span>
+      </div>
+
+      <button class="btn btn--bloque" type="submit" id="btn-entrar">Entrar</button>
+    </form>
+
+    <div class="aviso aviso--aviso mt-5 mb-0 oculto" id="aviso-offline">
+      <span><strong>Sin conexión.</strong>
+        Necesitas señal para iniciar sesión.</span>
+    </div>
+  </main>
+
   <script type="module">
-    // Deja tramos y especies en IndexedDB desde la entrada para poder registrar nidos sin señal.
-    import { descargarCatalogos } from '/js/catalogos.js';
-    descargarCatalogos();
+    import { supabase } from '/js/supabase.js';
+
+    const avisoOffline = document.getElementById('aviso-offline');
+
+    function actualizarEstadoConexion() {
+      avisoOffline.classList.toggle('oculto', navigator.onLine);
+    }
+
+    window.addEventListener('online', actualizarEstadoConexion);
+    window.addEventListener('offline', actualizarEstadoConexion);
+    actualizarEstadoConexion();
+
+    const form = document.getElementById('form-login');
+    const campoContrasena = document.getElementById('campo-contrasena');
+    const errorLogin = document.getElementById('error-login');
+    const btnEntrar = document.getElementById('btn-entrar');
+
+    function mostrarError(mensaje) {
+      campoContrasena.classList.add('campo--error');
+      errorLogin.textContent = mensaje;
+      errorLogin.classList.remove('oculto');
+    }
+
+    function limpiarError() {
+      campoContrasena.classList.remove('campo--error');
+      errorLogin.classList.add('oculto');
+    }
+
+    function pantallaSegunRol(rol) {
+      return rol === 'voluntario' ? '/patrullajes.html' : '/patrullajes.html';
+    }
+
+    form.addEventListener('submit', async (evento) => {
+      evento.preventDefault();
+      limpiarError();
+
+      const correo = document.getElementById('usuario').value.trim();
+      const contrasena = document.getElementById('contrasena').value;
+
+      btnEntrar.disabled = true;
+      btnEntrar.textContent = 'Entrando…';
+
+      const { data, error } = await supabase
+        .from('usuarios')
+        .select('id, nombre, correo, rol')
+        .eq('correo', correo)
+        .eq('password', contrasena)
+        .maybeSingle();
+
+      btnEntrar.disabled = false;
+      btnEntrar.textContent = 'Entrar';
+
+      if (error) {
+        mostrarError('No se pudo conectar. Revisa tu conexión e intenta de nuevo.');
+        return;
+      }
+
+      if (!data) {
+        mostrarError('Correo o contraseña incorrectos.');
+        return;
+      }
+
+      localStorage.setItem('nido_usuario', JSON.stringify(data));
+
+      window.location.href = pantallaSegunRol(data.rol);
+    });
   </script>
 </body>
 </html>
