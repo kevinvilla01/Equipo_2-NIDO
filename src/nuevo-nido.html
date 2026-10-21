@@ -3,99 +3,74 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#111111">
   <title>Nuevo nido — NIDO</title>
   <link rel="manifest" href="/manifest.json">
-  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/icons/tortuga_logo.png">
+  <link rel="stylesheet" href="/css/ui.css">
+  <link rel="stylesheet" href="/css/app.css">
   <script src="/config.js"></script>
-  <style>
-    :root {
-      --fondo: #111111; --superficie: #1c1c1c; --borde: #333333;
-      --texto: #f5f5f5; --tenue: #a3a3a3;
-      --exito: #4ade80; --aviso: #fbbf24; --error: #f87171; --marca: #0d9488;
-    }
-    * { box-sizing: border-box; }
-    body { margin: 0; padding: 0 16px 32px; font-family: system-ui, sans-serif; background: var(--fondo); color: var(--texto); }
-    .barra { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 16px 0; border-bottom: 1px solid var(--borde); }
-    .barra h1 { margin: 0; font-size: 1.25rem; }
-    .barra a { color: var(--texto); text-decoration: none; font-size: 1.5rem; min-width: 44px; }
-    .conexion { font-size: .875rem; font-weight: 600; color: var(--exito); white-space: nowrap; }
-    .conexion--sin-senal { color: var(--aviso); }
-    main { max-width: 480px; margin: 0 auto; }
-    .campo { display: flex; flex-direction: column; gap: 6px; margin-top: 20px; }
-    .campo label { font-weight: 600; }
-    .requerido { color: var(--error); }
-    .campo select, .campo input {
-      min-height: 48px; padding: 0 12px; font: inherit; font-size: 1rem;
-      background: var(--superficie); color: var(--texto);
-      border: 1px solid var(--borde); border-radius: 8px;
-    }
-    .campo--error select, .campo--error input { border-color: var(--error); }
-    .ayuda { font-size: .8125rem; color: var(--tenue); }
-    .error { font-size: .8125rem; color: var(--error); }
-    .oculto { display: none; }
-    button {
-      width: 100%; min-height: 52px; margin-top: 24px; font: inherit; font-weight: 700; font-size: 1rem;
-      background: var(--marca); color: #fff; border: 0; border-radius: 8px; cursor: pointer;
-    }
-    button:disabled { opacity: .6; }
-    .aviso { margin-top: 16px; padding: 12px; border-radius: 8px; background: var(--superficie); border: 1px solid var(--borde); font-size: .9375rem; }
-    .aviso--exito { border-color: var(--exito); }
-    .aviso--error { border-color: var(--error); }
-    h2 { margin: 32px 0 8px; font-size: 1.0625rem; }
-    .contador { color: var(--aviso); font-weight: 600; }
-    .lista { list-style: none; margin: 0; padding: 0; }
-    .nido { padding: 12px 0; border-bottom: 1px solid var(--borde); }
-    .nido__fila { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-    .nido__titulo { font-weight: 600; }
-    .nido__detalle { font-size: .875rem; color: var(--tenue); margin-top: 4px; overflow-wrap: anywhere; }
-    .badge { flex: none; padding: 2px 10px; border-radius: 999px; font-size: .75rem; font-weight: 700; }
-    .badge--pendiente { background: rgba(251, 191, 36, .15); color: var(--aviso); }
-    .badge--enviado { background: rgba(74, 222, 128, .15); color: var(--exito); }
-  </style>
+  <script type="module" src="/js/app.js"></script>
 </head>
-<body>
-  <main>
-    <header class="barra">
-      <a href="/" aria-label="Volver">‹</a>
-      <h1>Nuevo nido</h1>
-      <span class="conexion" id="conexion">En línea</span>
-    </header>
+<body class="tema-oscuro app pantalla-formulario con-nav-inferior">
 
-    <form id="form-nido" novalidate>
-      <div class="campo" id="campo-tramo">
-        <label for="tramo">Tramo <span class="requerido">*</span></label>
-        <select id="tramo" name="tramo_id" required>
-          <option value="">Selecciona un tramo</option>
-        </select>
-        <span class="error oculto">Selecciona el tramo.</span>
+  <header class="barra">
+    <h1 class="barra__titulo">Nuevo nido</h1>
+    <div class="barra__acciones">
+      <span class="estado-sync" id="estado-sync">
+        <span aria-hidden="true" id="estado-sync-icono">✓</span>
+        <span id="estado-sync-texto">En línea</span>
+      </span>
+    </div>
+  </header>
+
+  <div class="franja-offline" role="status">Sin conexión. Los nidos se guardan en el teléfono.</div>
+
+  <div class="contenedor">
+    <main class="contenido-formulario">
+      <form id="form-nido" novalidate>
+        <div class="campo" id="campo-tramo">
+          <label class="campo__etiqueta" for="tramo">Tramo <span class="requerido">*</span></label>
+          <select class="campo__control" id="tramo" name="tramo_id" required>
+            <option value="">Selecciona un tramo</option>
+          </select>
+          <span class="campo__error oculto">Selecciona el tramo.</span>
+        </div>
+
+        <div class="campo" id="campo-especie">
+          <label class="campo__etiqueta" for="especie">Especie <span class="requerido">*</span></label>
+          <select class="campo__control" id="especie" name="especie_id" required>
+            <option value="">Selecciona una especie</option>
+          </select>
+          <span class="campo__error oculto">Selecciona la especie.</span>
+        </div>
+
+        <div class="campo" id="campo-referencia">
+          <label class="campo__etiqueta" for="referencia">Referencia de ubicación <span class="requerido">*</span></label>
+          <input class="campo__control" id="referencia" name="referencia_ubicacion" type="text" autocomplete="off" required
+                 placeholder="Ej. 20 m al norte de la caseta 3">
+          <span class="campo__ayuda">Describe cómo encontrar el nido en la playa.</span>
+          <span class="campo__error oculto">Escribe la referencia de ubicación.</span>
+        </div>
+
+        <button class="btn btn--bloque mt-3" type="submit" id="btn-guardar">Guardar nido</button>
+      </form>
+
+      <div class="aviso oculto mt-5" id="aviso" role="status"></div>
+
+      <div class="encabezado mt-5">
+        <h2>Nidos en este teléfono</h2>
+        <span class="etiqueta etiqueta--pendiente oculto" id="contador"></span>
       </div>
-
-      <div class="campo" id="campo-especie">
-        <label for="especie">Especie <span class="requerido">*</span></label>
-        <select id="especie" name="especie_id" required>
-          <option value="">Selecciona una especie</option>
-        </select>
-        <span class="error oculto">Selecciona la especie.</span>
+      <ul class="pila lista-limpia" id="lista-nidos"></ul>
+      <div class="estado-vacio" id="lista-vacia">
+        <div class="estado-vacio__icono" aria-hidden="true">🥚</div>
+        <p class="estado-vacio__titulo">Sin nidos todavía</p>
+        <p class="estado-vacio__texto mb-0">Aún no hay nidos registrados en este teléfono.</p>
       </div>
+    </main>
+  </div>
 
-      <div class="campo" id="campo-referencia">
-        <label for="referencia">Referencia de ubicación <span class="requerido">*</span></label>
-        <input id="referencia" name="referencia_ubicacion" type="text" autocomplete="off" required
-               placeholder="Ej. 20 m al norte de la caseta 3">
-        <span class="ayuda">Describe cómo encontrar el nido en la playa.</span>
-        <span class="error oculto">Escribe la referencia de ubicación.</span>
-      </div>
-
-      <button type="submit" id="btn-guardar">Guardar nido</button>
-    </form>
-
-    <div class="aviso oculto" id="aviso" role="status"></div>
-
-    <h2>Nidos en este teléfono <span class="contador" id="contador"></span></h2>
-    <ul class="lista" id="lista-nidos"></ul>
-    <p class="ayuda" id="lista-vacia">Aún no hay nidos registrados en este teléfono.</p>
-  </main>
+  <nav class="nav-inferior" data-activa="nidos"></nav>
 
   <script type="module">
     import { guardarNido, listarNidos } from '/js/db.js';
@@ -103,7 +78,6 @@
     import { generarUUID } from '/js/uuid.js';
 
     const aviso = document.getElementById('aviso');
-    const conexion = document.getElementById('conexion');
     const selectTramo = document.getElementById('tramo');
     const selectEspecie = document.getElementById('especie');
     const inputReferencia = document.getElementById('referencia');
@@ -111,12 +85,7 @@
 
     function mostrarAviso(texto, tipo) {
       aviso.textContent = texto;
-      aviso.className = `aviso aviso--${tipo}`;
-    }
-
-    function actualizarConexion() {
-      conexion.textContent = navigator.onLine ? 'En línea' : 'Sin señal';
-      conexion.classList.toggle('conexion--sin-senal', !navigator.onLine);
+      aviso.className = `aviso aviso--${tipo} mt-5`;
     }
 
     async function llenarSelect(select, tabla) {
@@ -135,7 +104,7 @@
     function validarCampo(idCampo, valido) {
       const campo = document.getElementById(idCampo);
       campo.classList.toggle('campo--error', !valido);
-      campo.querySelector('.error').classList.toggle('oculto', valido);
+      campo.querySelector('.campo__error').classList.toggle('oculto', valido);
       return valido;
     }
 
@@ -151,18 +120,18 @@
       const lista = document.getElementById('lista-nidos');
       lista.replaceChildren(...nidos.map((nido) => {
         const item = document.createElement('li');
-        item.className = 'nido';
+        item.className = 'tarjeta';
         const fila = document.createElement('div');
-        fila.className = 'nido__fila';
+        fila.className = 'fila entre';
         const titulo = document.createElement('span');
-        titulo.className = 'nido__titulo';
+        titulo.className = 'tarjeta__titulo';
         titulo.textContent = nombres.especies.get(nido.especie_id) ?? 'Especie';
         const badge = document.createElement('span');
-        badge.className = nido.pendiente_envio ? 'badge badge--pendiente' : 'badge badge--enviado';
+        badge.className = nido.pendiente_envio ? 'etiqueta etiqueta--pendiente' : 'etiqueta etiqueta--completado';
         badge.textContent = nido.pendiente_envio ? 'Pendiente de envío' : 'Enviado';
         fila.append(titulo, badge);
         const detalle = document.createElement('div');
-        detalle.className = 'nido__detalle';
+        detalle.className = 'tarjeta__texto mb-0 mt-3';
         const tramo = nombres.tramos.get(nido.tramo_id) ?? 'Tramo';
         const hora = new Date(nido.creado_en).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
         detalle.textContent = `${tramo} · ${nido.referencia_ubicacion} · ${hora}`;
@@ -170,7 +139,9 @@
         return item;
       }));
       const pendientes = nidos.filter((nido) => nido.pendiente_envio).length;
-      document.getElementById('contador').textContent = pendientes ? `(${pendientes} ${pendientes === 1 ? 'pendiente' : 'pendientes'})` : '';
+      const contador = document.getElementById('contador');
+      contador.textContent = `${pendientes} ${pendientes === 1 ? 'pendiente' : 'pendientes'}`;
+      contador.classList.toggle('oculto', pendientes === 0);
       document.getElementById('lista-vacia').classList.toggle('oculto', nidos.length > 0);
     }
 
@@ -211,10 +182,6 @@
         boton.disabled = false;
       }
     });
-
-    window.addEventListener('online', actualizarConexion);
-    window.addEventListener('offline', actualizarConexion);
-    actualizarConexion();
 
     const [totalTramos, totalEspecies] = await Promise.all([
       llenarSelect(selectTramo, 'tramos'),

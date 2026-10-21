@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nuevo voluntario — NIDO</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/tortuga_logo.png">
+  <link rel="stylesheet" href="/css/ui.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body class="tema-oscuro app pantalla-formulario">
+
+  <header class="barra">
+    <a class="btn btn--fantasma barra__volver" href="/voluntarios.html" aria-label="Volver">
+      <span aria-hidden="true">‹</span>
+    </a>
+    <h1 class="barra__titulo">Nuevo voluntario</h1>
+    <div class="barra__acciones">
+      <span class="estado-sync" id="estado-sync">
+        <span aria-hidden="true" id="estado-sync-icono">✓</span>
+        <span id="estado-sync-texto">Sincronizado</span>
+      </span>
+    </div>
+  </header>
+
+  <div class="contenedor">
+    <main class="contenido-formulario">
+      <form id="form-voluntario" novalidate>
+        <div class="campo">
+          <label class="campo__etiqueta" for="nombre-completo">
+            Nombre completo <span class="requerido">*</span>
+          </label>
+          <input class="campo__control" id="nombre-completo" name="nombre" type="text" required>
+          <span class="campo__ayuda">Escribe el nombre completo del participante</span>
+        </div>
+
+        <div class="campo">
+          <label class="campo__etiqueta" for="correo">
+            Correo <span class="requerido">*</span>
+          </label>
+          <input class="campo__control" id="correo" name="correo" type="email" required>
+          <span class="campo__ayuda">Se usa para iniciar sesión</span>
+        </div>
+
+        <div class="campo">
+          <label class="campo__etiqueta" for="rol">
+            Rol <span class="requerido">*</span>
+          </label>
+          <select class="campo__control" id="rol" name="rol" required>
+            <option value="" selected disabled>Selecciona un rol</option>
+            <option value="coordinador">Coordinador</option>
+            <option value="voluntario">Voluntario</option>
+          </select>
+        </div>
+
+        <div class="tarjeta fila entre tarjeta-activo">
+          <p>
+            <span class="tarjeta__titulo">Activo</span><br>
+            <span class="tenue pequeno">Los inactivos no entran; sus registros se conservan</span>
+          </p>
+          <label class="switch">
+            <input type="checkbox" id="activo" name="activo" checked>
+            <span class="switch__pista" aria-hidden="true"></span>
+            <span class="solo-lectores">Activo</span>
+          </label>
+        </div>
+
+        <div class="pila mt-4">
+          <button class="btn btn--bloque" type="submit">Guardar</button>
+          <a class="btn btn--fantasma btn--bloque" href="/voluntarios.html">Cancelar</a>
+        </div>
+      </form>
+    </main>
+  </div>
+
+  <script>
+    document.getElementById('form-voluntario').addEventListener('submit', (evento) => {
+      evento.preventDefault();
+    });
+  </script>
+</body>
+</html>
