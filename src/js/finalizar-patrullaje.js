@@ -1,11 +1,34 @@
-import { supabase } from './supabase.js';
+import { supabase } from '/js/supabase.js';
 
 const params = new URLSearchParams(window.location.search);
 const patrullajeId = params.get('id');
 
+const avisoFormulario = document.getElementById('aviso-formulario');
+const btnFinalizar = document.getElementById('btn-finalizar');
+const btnEliminar = document.getElementById('btn-eliminar');
+const dialogo = document.getElementById('dialogo-eliminar');
+const btnDialogoConfirmar = document.getElementById('btn-dialogo-confirmar');
+
+function mostrarAviso(mensaje) {
+  avisoFormulario.textContent = mensaje;
+  avisoFormulario.classList.remove('oculto');
+  avisoFormulario.scrollIntoView({ block: 'center' });
+}
+
+function limpiarAviso() {
+  avisoFormulario.classList.add('oculto');
+}
+
+function motivo(accion) {
+  return navigator.onLine
+    ? `No se pudo ${accion}. Intenta de nuevo.`
+    : `No se pudo ${accion} porque no hay señal. Intenta de nuevo con conexión.`;
+}
+
 if (!patrullajeId) {
-    alert ('No se indicó el patrullaje a abrir');
-    window.location.href = 'patrullajes.html';
+  mostrarAviso('No se indicó el patrullaje a abrir. Vuelve a la lista y elige uno.');
+  btnFinalizar.disabled = true;
+  btnEliminar.disabled = true;
 }
 
 async function cargarDetalle() {
@@ -23,7 +46,7 @@ async function cargarDetalle() {
 
       if (error) {
     console.error(error);
-    alert('No se pudo cargar el patrullaje');
+    mostrarAviso(motivo('cargar el patrullaje'));
     return;
   }
 
@@ -40,7 +63,8 @@ async function cargarDetalle() {
 }
 
 async function eliminarPatrullaje() {
-  if (!confirm('¿Seguro que quieres eliminar este patrullaje? No se puede deshacer.')) return;
+  dialogo.close();
+  limpiarAviso();
 
     const { error: errorVol } = await supabase
     .from('patrullaje_voluntario')
@@ -49,7 +73,9 @@ async function eliminarPatrullaje() {
 
       if (errorVol) {
     console.error(errorVol);
-    alert('No se pudieron borrar los voluntarios: ' + errorVol.message);
+    mostrarAviso(navigator.onLine
+      ? 'No se pudieron borrar los voluntarios: ' + errorVol.message
+      : motivo('eliminar el patrullaje'));
     return;
   }
 
@@ -61,24 +87,25 @@ async function eliminarPatrullaje() {
 
   if (error) {
     console.error(error);
-    alert('No se pudo eliminar: ' + error.message);
+    mostrarAviso(navigator.onLine ? 'No se pudo eliminar: ' + error.message : motivo('eliminar el patrullaje'));
     return;
   }
 
   if (!data || data.length === 0) {
-    alert('No se eliminó ningún registro (revisa las políticas de DELETE)');
+    mostrarAviso('No se eliminó ningún registro (revisa las políticas de DELETE).');
     return;
   }
 
-  alert('Patrullaje eliminado');
-  window.location.href = 'patrullajes.html';
+  window.location.href = '/patrullajes.html?aviso=eliminado';
 }
 
 
 
-document.getElementById('btn-eliminar').addEventListener('click', eliminarPatrullaje);
+btnEliminar.addEventListener('click', () => dialogo.showModal());
+document.getElementById('btn-dialogo-volver').addEventListener('click', () => dialogo.close());
+btnDialogoConfirmar.addEventListener('click', eliminarPatrullaje);
 
-cargarDetalle();
+if (patrullajeId) cargarDetalle();
 
 
 async function finalizarPatrullaje(){
@@ -89,10 +116,15 @@ async function finalizarPatrullaje(){
   const Clima = document.getElementById('clima').value;
   const Observaciones = document.getElementById('observaciones').value;
 
+  limpiarAviso();
+
     if (!horaFin || !Marea || !faseLunar || !Clima || !Observaciones) {
-    alert('Completa la todos los apartados para finalizar el patrullaje');
+    mostrarAviso('Completa todos los apartados para finalizar el patrullaje.');
     return;
   }
+
+  btnFinalizar.disabled = true;
+  btnFinalizar.textContent = 'Finalizando…';
 
 const { data, error } = await supabase
     .from('patrullajes')
@@ -105,17 +137,19 @@ const { data, error } = await supabase
       finalizado: true
     })
     .eq('id', patrullajeId)
+      .select()
       .single();
 
         if (error) {
     console.error(error);
-    alert ('No se pudo finalizar el patrullaje');
+    btnFinalizar.disabled = false;
+    btnFinalizar.textContent = 'Finalizar patrullaje';
+    mostrarAviso(motivo('finalizar el patrullaje'));
     return;
   }
 
-      alert ('Patrullaje finalizado coan éxito');
-    window.location.href = 'patrullajes.html';
+    window.location.href = '/patrullajes.html?aviso=finalizado';
 
 
   }
-  document.getElementById('btn-finalizar').addEventListener('click', finalizarPatrullaje);
+  btnFinalizar.addEventListener('click', finalizarPatrullaje);

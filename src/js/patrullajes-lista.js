@@ -1,6 +1,13 @@
-import { supabase } from './supabase.js';
+import { supabase } from '/js/supabase.js';
 
 const listEl = document.getElementById('patrol-list');
+
+// Los textos vienen de la base de datos: se escapan antes de meterlos en innerHTML.
+function escaparHTML(valor) {
+  const div = document.createElement('div');
+  div.textContent = valor;
+  return div.innerHTML;
+}
 
 // Convierte "2026-09-26" -> "Ayer", "Hoy" o "26 sep"
 function formatFecha(fechaStr) {
@@ -43,7 +50,7 @@ function crearTarjeta(patrullaje) {
   const obsTexto = observaciones ? observaciones : 'Sin novedades';
 
   const badgeTexto = finalizado ? 'Completado' : 'Creado';
-  const badgeClase = finalizado ? 'badge badge-completado' : 'badge';
+  const badgeClase = finalizado ? 'etiqueta etiqueta--completado' : 'etiqueta etiqueta--proceso';
 
 const Voluntarios = (patrullaje_voluntario ?? [])
   .map(v => v.usuarios?.nombre)
@@ -51,38 +58,28 @@ const Voluntarios = (patrullaje_voluntario ?? [])
   .join(', ') || 'Sin voluntarios';
 
   const syncIcon = pendiente_envio
-    ? `<span class="sync-status sync-pending">
-         <svg viewBox="0 0 24 24" class="icon-clock"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-         Pendiente
-       </span>`
-    : `<span class="sync-status">
-         <svg viewBox="0 0 24 24" class="icon-check"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-         Sincronizado
-       </span>`;
+    ? `<span class="etiqueta etiqueta--pendiente">Pendiente</span>`
+    : `<span class="estado-sync"><span aria-hidden="true">✓</span>Sincronizado</span>`;
 
   return `
-  <a href="finalizar_patrullaje.html?id=${id}" class="card-link">
-    <article class="card">
-        <div class="card-head">
-          <h2>${titulo}</h2>
-          <span class="${badgeClase}"><span class="dot"></span>${badgeTexto}</span>
-        </div>
-        <dl class="details">
-          <div><dt>Tramo</dt><dd>${nombreTramo}</dd></div>
-          <div><dt>Hora de inicio</dt><dd>${hora_inicio.slice(0, 5)}</dd></div>
-          <div><dt>Hora de fin</dt><dd>${finTexto}</dd></div>
-          <div><dt>Observaciones</dt><dd>${obsTexto}</dd></div>
-          <div><dt>Voluntarios</dt><dd>${Voluntarios}</dd></div>
-
-        </dl>
-        <hr>
-        <div class="card-foot">
-          <span class="timestamp">${formatFecha(fecha)}</span>
-          ${syncIcon}
-        </div>
-      </article>
+    <a href="/finalizar-patrullaje.html?id=${id}" class="tarjeta tarjeta-enlace">
+      <div class="fila entre mb-3">
+        <h3 class="tarjeta__titulo">${titulo}</h3>
+        <span class="${badgeClase}">${badgeTexto}</span>
+      </div>
+      <dl class="datos">
+        <dt>Tramo</dt><dd>${escaparHTML(nombreTramo)}</dd>
+        <dt>Hora de inicio</dt><dd>${hora_inicio.slice(0, 5)}</dd>
+        <dt>Hora de fin</dt><dd>${finTexto}</dd>
+        <dt>Observaciones</dt><dd>${escaparHTML(obsTexto)}</dd>
+        <dt>Voluntarios</dt><dd>${escaparHTML(Voluntarios)}</dd>
+      </dl>
+      <div class="tarjeta__pie entre">
+        <span class="tenue pequeno">${formatFecha(fecha)}</span>
+        ${syncIcon}
+      </div>
     </a>
-    `;
+  `;
 }
 
 async function cargarPatrullajes() {
@@ -97,20 +94,49 @@ async function cargarPatrullajes() {
     `)
     .order('creado_en', { ascending: false });
 
+  listEl.removeAttribute('aria-busy');
+
   if (error) {
     console.error(error);
-    listEl.innerHTML = `<p class="state-msg">No se pudieron cargar los patrullajes.</p>`;
+    listEl.innerHTML = `
+      <div class="estado-error">
+        <p class="estado-error__titulo">No se pudieron cargar los patrullajes</p>
+        <p class="estado-error__texto">
+          ${navigator.onLine ? 'Hubo un problema al traer los datos.' : 'No hay señal en este momento.'}
+          Revisa tu conexión e intenta de nuevo.
+        </p>
+        <button class="btn btn--secundario" type="button">Reintentar</button>
+      </div>`;
+    listEl.querySelector('button').addEventListener('click', cargarPatrullajes);
     return;
   }
 
   if (!data || data.length === 0) {
-    listEl.innerHTML = `<p class="state-msg">Aún no hay patrullajes registrados.</p>`;
+    listEl.innerHTML = `
+      <div class="estado-vacio">
+        <div class="estado-vacio__icono" aria-hidden="true">🐢</div>
+        <p class="estado-vacio__titulo">Aún no hay patrullajes registrados</p>
+        <p class="estado-vacio__texto">Inicia el primero y aparecerá aquí con su tramo y voluntarios.</p>
+      </div>`;
     return;
   }
 
   listEl.innerHTML = data.map(crearTarjeta).join('');
 }
 
-  cargarPatrullajes();
+// Mensaje que dejan registrar y finalizar al volver a la lista (?aviso=...)
+const AVISOS = {
+  registrado: 'Patrullaje guardado con éxito.',
+  finalizado: 'Patrullaje finalizado con éxito.',
+  eliminado: 'Patrullaje eliminado.',
+};
+const avisoResultado = document.getElementById('aviso-resultado');
+const aviso = AVISOS[new URLSearchParams(window.location.search).get('aviso')];
+if (aviso) {
+  avisoResultado.textContent = aviso;
+  avisoResultado.classList.remove('oculto');
+  history.replaceState(null, '', '/patrullajes.html');
+}
 
+cargarPatrullajes();
 

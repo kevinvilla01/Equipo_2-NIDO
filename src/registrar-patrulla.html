@@ -1,70 +1,80 @@
-<!DOCTYPE html>
-<html lang="es">
+<!doctype html>
+<html lang="es-MX">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nueva Patrulla</title>
-<link rel="stylesheet" href="../estilos/estilos_registrar_patrulla.css">
-<script type="module" src="../back/registrar_patrulla.js"></script>
-
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nueva patrulla — NIDO</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/tortuga_logo.png">
+  <link rel="stylesheet" href="/css/ui.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script src="/config.js"></script>
+  <script src="/vendor/supabase.js"></script>
+  <script type="module" src="/js/app.js"></script>
+  <script type="module" src="/js/registrar-patrulla.js"></script>
 </head>
-<body>
+<body class="tema-oscuro app pantalla-formulario con-nav-inferior">
 
-  <div class="phone">
-    <div class="content">
-      <header class="topbar">
-        <div class="topbar-left">
-          <a href="patrullajes.html" class="back-btn" aria-label="Volver">
-            <svg viewBox="0 0 24 24" class="icon-back"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </a>
-          <h1>Nueva Patrulla</h1>
-        </div>
-        <span class="sync-status">
-          <svg viewBox="0 0 24 24" class="icon-check"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          Sincronizado
-        </span>
-      </header>
-
-      <main class="form-content">
-
-        <div class="field">
-          <label for="hora-inicio">Hora de inicio</label>
-          <input type="time" id="hora-inicio" value="">
-          <p class="hint">Hora local de inicio de jornada</p>
-        </div>
-
-
-        <div class="field">
-          <label for="tramo">Tramo a patrullar</label>
-          <div class="select-wrap">
-            <select id="tramo" >
-              <option value="">Seleccionar</option>
-            </select>
-            <svg viewBox="0 0 24 24" class="icon-chevron"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </div>
-        </div>
-
-        <div class="field">
-          <label for="fecha">Fecha</label>
-          <input type="date" id="fecha">
-          <p class="hint">Día en que se realiza el patrullaje</p>
-        </div>
-
-
-        <div class="field">
-          <label>Voluntarios</label>
-          <div id="voluntarios-list" class="checkbox-list">
-            <!-- aquí se insertan los checkboxes por JS -->
-          </div>
-        </div>
-
-      </main>
-
-      <div class="cta-wrap">
-        <button class="cta" id="btn-guardar">Guardar patrullaje</button>
-      </div>
+  <header class="barra">
+    <a class="btn btn--fantasma barra__volver" href="/patrullajes.html" aria-label="Volver">
+      <span aria-hidden="true">‹</span>
+    </a>
+    <h1 class="barra__titulo">Nueva patrulla</h1>
+    <div class="barra__acciones">
+      <span class="estado-sync" id="estado-sync">
+        <span aria-hidden="true" id="estado-sync-icono">✓</span>
+        <span id="estado-sync-texto">En línea</span>
+      </span>
     </div>
+  </header>
+
+  <div class="franja-offline" role="status">Sin conexión. Necesitas señal para registrar el patrullaje.</div>
+
+  <div class="contenedor">
+    <main class="contenido-formulario">
+      <div class="aviso aviso--error oculto" id="aviso-formulario" role="alert"></div>
+
+      <div class="campo">
+        <label class="campo__etiqueta" for="hora-inicio">
+          Hora de inicio <span class="requerido">*</span>
+        </label>
+        <input class="campo__control" type="time" id="hora-inicio" value="">
+        <span class="campo__ayuda">Hora local de inicio de jornada</span>
+      </div>
+
+      <div class="campo">
+        <label class="campo__etiqueta" for="tramo">
+          Tramo a patrullar <span class="requerido">*</span>
+        </label>
+        <select class="campo__control" id="tramo">
+          <option value="">Seleccionar</option>
+        </select>
+      </div>
+
+      <div class="campo">
+        <label class="campo__etiqueta" for="fecha">
+          Fecha <span class="requerido">*</span>
+        </label>
+        <input class="campo__control" type="date" id="fecha">
+        <span class="campo__ayuda">Día en que se realiza el patrullaje</span>
+      </div>
+
+      <fieldset class="campo tarjeta">
+        <legend class="campo__etiqueta">Voluntarios <span class="requerido">*</span></legend>
+        <div id="voluntarios-list">
+          <div class="esqueleto esqueleto--linea" aria-hidden="true"></div>
+          <div class="esqueleto esqueleto--linea" aria-hidden="true"></div>
+        </div>
+      </fieldset>
+
+      <div class="pila mt-4">
+        <button class="btn btn--bloque" type="button" id="btn-guardar">Guardar patrullaje</button>
+        <a class="btn btn--fantasma btn--bloque" href="/patrullajes.html">Cancelar</a>
+      </div>
+    </main>
   </div>
+
+  <nav class="nav-inferior" data-activa="patrullaje"></nav>
 
 </body>
 </html>

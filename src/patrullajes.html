@@ -1,50 +1,55 @@
-<!DOCTYPE html>
-<html lang="es">
+<!doctype html>
+<html lang="es-MX">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Patrullajes</title>
-<link rel="stylesheet" href="../estilos/index_styles.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Patrullajes — NIDO</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/tortuga_logo.png">
+  <link rel="stylesheet" href="/css/ui.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script src="/config.js"></script>
+  <script src="/vendor/supabase.js"></script>
+  <script type="module" src="/js/app.js"></script>
 </head>
-<body>
+<body class="tema-oscuro app con-nav-inferior">
 
-  <div class="phone">
-    <div class="content">
-    <header class="topbar">
-      <h1>Patrullajes</h1>
-      <span class="sync-status">
-        <svg viewBox="0 0 24 24" class="icon-check"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Sincronizado
+  <header class="barra">
+    <h1 class="barra__titulo">Patrullajes</h1>
+    <div class="barra__acciones">
+      <a class="btn btn--fantasma btn--pequeno" href="/catalogos.html">Catálogos</a>
+      <a class="btn btn--fantasma btn--pequeno" href="/voluntarios.html">Voluntarios</a>
+      <span class="estado-sync" id="estado-sync">
+        <span aria-hidden="true" id="estado-sync-icono">✓</span>
+        <span id="estado-sync-texto">En línea</span>
       </span>
-    </header>
-
-      <main class="list" id="patrol-list">
-        <p class="state-msg">Cargando patrullajes...</p>
-      </main>
-
-    <div class="cta-wrap">
-      <a href="registrar_patrulla.html" class="cta">Iniciar patrullaje</a>
     </div>
+  </header>
+
+  <div class="franja-offline" role="status">Sin conexión. Los patrullajes se cargan al volver la señal.</div>
+
+  <div class="contenedor">
+    <div class="aviso aviso--exito oculto" id="aviso-resultado" role="status"></div>
+
+    <div class="encabezado">
+      <h2>Recientes</h2>
+      <a class="btn" href="/registrar-patrulla.html">Iniciar patrullaje</a>
     </div>
 
-    <nav class="tabbar">
-      <button class="tab active">
-        <svg viewBox="0 0 24 24" class="icon-tab"><path d="M12 2l8 4v6c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6l8-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
-        <span>Patrullaje</span>
-      </button>
-      <button class="tab">
-        <svg viewBox="0 0 24 24" class="icon-tab"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-        <span>Nidos</span>
-      </button>
-      <button class="tab">
-        <svg viewBox="0 0 24 24" class="icon-tab"><path d="M12 3c3 3.5 6 6.8 6 10.5A6 6 0 0 1 6 13.5C6 9.8 9 6.5 12 3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
-        <span>Liberaciones</span>
-      </button>
-    </nav>
+    <main class="pila" id="patrol-list" aria-busy="true">
+      <div class="esqueleto esqueleto--tarjeta" aria-hidden="true"></div>
+      <div class="esqueleto esqueleto--tarjeta" aria-hidden="true"></div>
+    </main>
   </div>
 
-    <script type="module" src="../back/patrullajes_lista.js"></script>
+  <nav class="nav-inferior" data-activa="patrullaje"></nav>
 
-
+  <script type="module" src="/js/patrullajes-lista.js"></script>
+  <script type="module">
+    // Pantalla de entrada tras el login: deja tramos y especies en IndexedDB
+    // para poder registrar nidos sin señal.
+    import { descargarCatalogos } from '/js/catalogos.js';
+    descargarCatalogos();
+  </script>
 </body>
 </html>

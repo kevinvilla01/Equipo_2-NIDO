@@ -1,31 +1,38 @@
 <!doctype html>
-<html lang="es">
+<html lang="es-MX">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#111111">
-  <title>NIDO</title>
+  <title>Estado — NIDO</title>
   <link rel="manifest" href="/manifest.json">
-  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/icons/tortuga_logo.png">
+  <link rel="stylesheet" href="/css/ui.css">
+  <link rel="stylesheet" href="/css/app.css">
   <script src="/config.js"></script>
-  <style>
-    body { margin: 0; padding: 24px 16px; font-family: system-ui, sans-serif; background: #111111; color: #f5f5f5; }
-    h1 { margin-top: 0; }
-    .ok { color: #4ade80; }
-    .error { color: #f87171; }
-  </style>
 </head>
-<body>
-  <h1>NIDO</h1>
-  <p>Service worker: <strong id="sw-status">comprobando…</strong></p>
-  <p>Conexión a Supabase: <strong id="supabase-status">comprobando…</strong></p>
-  <p><a href="/nuevo-nido.html" style="color: inherit;">Registrar nido</a></p>
+<body class="tema-oscuro app">
+  <header class="barra">
+    <a class="btn btn--fantasma barra__volver" href="/patrullajes.html" aria-label="Volver">
+      <span aria-hidden="true">‹</span>
+    </a>
+    <h1 class="barra__titulo">Estado de la app</h1>
+  </header>
+
+  <main class="contenedor">
+    <div class="tarjeta">
+      <dl class="datos">
+        <dt>Service worker</dt><dd><strong id="sw-status">comprobando…</strong></dd>
+        <dt>Conexión a Supabase</dt><dd><strong id="supabase-status">comprobando…</strong></dd>
+      </dl>
+    </div>
+  </main>
 
   <script>
     function setStatus(id, ok, text) {
       var el = document.getElementById(id);
       el.textContent = text;
-      el.className = ok ? 'ok' : 'error';
+      el.style.color = ok ? 'var(--color-exito)' : 'var(--color-error)';
     }
 
     if ('serviceWorker' in navigator) {
@@ -51,11 +58,6 @@
           setStatus('supabase-status', false, 'error');
         });
     }
-  </script>
-  <script type="module">
-    // Deja tramos y especies en IndexedDB desde la entrada para poder registrar nidos sin señal.
-    import { descargarCatalogos } from '/js/catalogos.js';
-    descargarCatalogos();
   </script>
 </body>
 </html>
