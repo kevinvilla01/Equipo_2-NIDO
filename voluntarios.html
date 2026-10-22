@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Voluntarios — NIDO</title>
-  <link rel="stylesheet" href="ui.css">
+  <link rel="stylesheet" href="estilos/ui.css">
+  <link rel="icon" href="src/icons/tortuga_logo.png">
   <style>
     .pantalla-voluntarios .contenedor { display: flex; flex-direction: column; }
 
@@ -68,6 +69,13 @@
       display: flex; flex-direction: column; gap: var(--e-1); min-width: 0;
     }
     .fila-voluntario__texto .tarjeta__titulo { margin-bottom: 0; }
+
+    .fila-voluntario__enlace {
+      flex: 1; min-width: 0;
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: var(--e-3); color: inherit; text-decoration: none;
+    }
+    .fila-voluntario__chevron { color: var(--color-texto-tenue); flex: none; }
     .fila-voluntario__badges { display: flex; align-items: center; gap: var(--e-2); }
 
     .badge-rol {
@@ -86,6 +94,12 @@
     .pie-voluntarios {
       padding: var(--e-4); padding-bottom: calc(var(--e-4) + env(safe-area-inset-bottom));
       background: var(--color-fondo); border-top: 1px solid var(--color-borde);
+    }
+
+    .tema-oscuro .esqueleto {
+      background: linear-gradient(90deg,
+                  var(--color-borde) 25%, var(--color-borde-fuerte) 50%, var(--color-borde) 75%);
+      background-size: 200% 100%;
     }
   </style>
 </head>
@@ -119,7 +133,9 @@
     </div>
   </div>
 
-  <script>
+  <script type="module">
+    import { supabase } from './scripts/supabase.js';
+
     const estadoSync = document.getElementById('estado-sync');
     const estadoSyncIcono = document.getElementById('estado-sync-icono');
     const estadoSyncTexto = document.getElementById('estado-sync-texto');
@@ -127,7 +143,6 @@
     function actualizarEstadoSincronizacion() {
       const hayConexion = navigator.onLine;
       estadoSync.classList.toggle('estado-sync--sin-conexion', !hayConexion);
-      estadoSyncIcono.textContent = hayConexion ? '✓' : '⚠';
       estadoSyncTexto.textContent = hayConexion ? 'Sincronizado' : 'Sin conexión';
     }
 
@@ -135,17 +150,111 @@
     window.addEventListener('offline', actualizarEstadoSincronizacion);
     actualizarEstadoSincronizacion();
 
-    const datosVoluntarios = [];
-
+    let datosVoluntarios = [];
+    let datosCargados = false;
     let filtroActivo = 'todos';
+
+    const listaVoluntarios = document.getElementById('lista-voluntarios');
+
+    const avisoLista = document.createElement('div');
+    avisoLista.className = 'aviso aviso--error oculto';
+    avisoLista.setAttribute('role', 'alert');
+    listaVoluntarios.parentElement.before(avisoLista);
+
+    function escaparHTML(valor) {
+      const div = document.createElement('div');
+      div.textContent = valor;
+      return div.innerHTML;
+    }
+
+    function mostrarAviso(mensaje) {
+      avisoLista.textContent = mensaje;
+      avisoLista.classList.remove('oculto');
+    }
+
+    function limpiarAviso() {
+      avisoLista.classList.add('oculto');
+    }
 
     function etiquetaRol(rol) {
       return rol === 'coordinador' ? 'Coordinador' : 'Voluntario';
     }
 
+    function mostrarCargando() {
+      listaVoluntarios.setAttribute('aria-busy', 'true');
+      listaVoluntarios.innerHTML = `
+        <div class="esqueleto esqueleto--tarjeta" aria-hidden="true"></div>
+        <div class="esqueleto esqueleto--tarjeta" aria-hidden="true"></div>`;
+    }
+
+    function mostrarError() {
+      listaVoluntarios.removeAttribute('aria-busy');
+      listaVoluntarios.innerHTML = `
+        <div class="estado-error">
+          <p class="estado-error__titulo">No pudimos cargar los voluntarios</p>
+          <p class="estado-error__texto">
+            No se pudieron traer los datos. Revisa tu conexión; si el problema
+            sigue, avisa al equipo.
+          </p>
+          <button class="btn btn--secundario" type="button">Reintentar</button>
+        </div>`;
+      listaVoluntarios.querySelector('button').addEventListener('click', cargarVoluntarios);
+    }
+
+    async function cargarVoluntarios() {
+      datosCargados = false;
+      limpiarAviso();
+      mostrarCargando();
+
+      const { data, error } = await supabase
+        .from('usuarios')
+        .select('id, nombre, correo, rol, activo')
+        .order('creado_en', { ascending: false });
+
+      if (error) {
+        console.error('Error de Supabase al leer usuarios:', error);
+        mostrarError();
+        return;
+      }
+
+      datosVoluntarios = data.map((usuario) => ({
+        id: usuario.id,
+        nombre: usuario.nombre,
+        correo: usuario.correo,
+        rol: usuario.rol === 'voluntario' ? 'voluntario' : 'coordinador',
+        activo: usuario.activo !== false
+      }));
+
+      datosCargados = true;
+      renderizarVoluntarios();
+    }
+
+    async function cambiarActivo(voluntario, nuevoValor) {
+      limpiarAviso();
+
+      const { data, error } = await supabase
+        .from('usuarios')
+        .update({ activo: nuevoValor })
+        .eq('id', voluntario.id)
+        .select('id');
+
+      if (error) {
+        console.error('Error de Supabase al cambiar activo:', error);
+        mostrarAviso('No se pudo cambiar el estado. Revisa tu conexión e intenta de nuevo.');
+      } else if (data.length === 0) {
+        mostrarAviso('No se guardó el cambio: la base de datos no permite editar usuarios (falta la política de UPDATE en la tabla usuarios).');
+      } else {
+        voluntario.activo = nuevoValor;
+      }
+
+      renderizarVoluntarios();
+    }
+
     function renderizarVoluntarios() {
-      const contenedor = document.getElementById('lista-voluntarios');
-      contenedor.innerHTML = '';
+      if (!datosCargados) return;
+
+      listaVoluntarios.removeAttribute('aria-busy');
+      listaVoluntarios.innerHTML = '';
 
       const items = datosVoluntarios.filter((v) => {
         if (filtroActivo === 'activos') return v.activo;
@@ -160,16 +269,16 @@
           inactivos: 'No hay voluntarios inactivos con este filtro.'
         }[filtroActivo];
 
-        contenedor.innerHTML = `
+        listaVoluntarios.innerHTML = `
           <div class="estado-vacio">
-            <div class="estado-vacio__icono" aria-hidden="true">🧑‍🤝‍🧑</div>
+            <div class="estado-vacio__icono" aria-hidden="true"></div>
             <p class="estado-vacio__titulo">Sin resultados</p>
             <p class="estado-vacio__texto">${textoVacio}</p>
           </div>`;
         return;
       }
 
-      items.forEach((item, indice) => {
+      items.forEach((item) => {
         const claseBadge = item.activo
           ? `badge-rol--${item.rol}`
           : 'badge-rol--inactivo';
@@ -177,26 +286,31 @@
         const fila = document.createElement('div');
         fila.className = 'tarjeta fila entre fila-voluntario';
         fila.innerHTML = `
-          <div class="fila-voluntario__texto">
-            <span class="tarjeta__titulo">${item.nombre}</span>
-            <span class="fila-voluntario__badges">
-              <span class="badge-rol ${claseBadge}">${etiquetaRol(item.rol)}</span>
-            </span>
-            <span class="tenue pequeno">${item.correo}</span>
-          </div>
+          <a class="fila-voluntario__enlace" href="alta-voluntario.html?id=${encodeURIComponent(item.id)}">
+            <div class="fila-voluntario__texto">
+              <span class="tarjeta__titulo">${escaparHTML(item.nombre)}</span>
+              <span class="fila-voluntario__badges">
+                <span class="badge-rol ${claseBadge}">${etiquetaRol(item.rol)}</span>
+              </span>
+              <span class="tenue pequeno">${escaparHTML(item.correo)}</span>
+            </div>
+            <span class="fila-voluntario__chevron" aria-hidden="true">›</span>
+          </a>
           <label class="switch">
-            <input type="checkbox" data-indice="${indice}" ${item.activo ? 'checked' : ''}>
+            <input type="checkbox" data-id="${escaparHTML(item.id)}" ${item.activo ? 'checked' : ''}>
             <span class="switch__pista" aria-hidden="true"></span>
-            <span class="sr-solo">${item.nombre}: ${item.activo ? 'activo' : 'inactivo'}</span>
+            <span class="sr-solo">${escaparHTML(item.nombre)}: ${item.activo ? 'activo' : 'inactivo'}</span>
           </label>`;
-        contenedor.appendChild(fila);
+        listaVoluntarios.appendChild(fila);
       });
 
-      contenedor.querySelectorAll('.switch input').forEach((input) => {
+      listaVoluntarios.querySelectorAll('.switch input').forEach((input) => {
         input.addEventListener('change', (evento) => {
-          const indice = Number(evento.target.dataset.indice);
-          items[indice].activo = evento.target.checked;
-          renderizarVoluntarios();
+          const voluntario = datosVoluntarios.find(
+            (v) => String(v.id) === evento.target.dataset.id
+          );
+          input.disabled = true;
+          cambiarActivo(voluntario, evento.target.checked);
         });
       });
     }
@@ -211,7 +325,7 @@
       });
     });
 
-    renderizarVoluntarios();
+    cargarVoluntarios();
   </script>
 </body>
 </html>

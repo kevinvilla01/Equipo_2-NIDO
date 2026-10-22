@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Nuevo voluntario — NIDO</title>
-  <link rel="stylesheet" href="ui.css">
+  <link rel="stylesheet" href="estilos/ui.css">
+  <link rel="icon" href="src/icons/tortuga_logo.png">
   <style>
     .pantalla-formulario .contenedor {
       display: flex; flex-direction: column; align-items: center;
@@ -50,6 +51,8 @@
 
     .tarjeta-activo p { margin: 0; }
 
+    .tema-oscuro dialog.dialogo { background: var(--color-superficie); }
+
     .sr-solo {
       position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
       overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
@@ -62,7 +65,7 @@
     <a class="btn btn--fantasma barra__volver" href="voluntarios.html" aria-label="Volver">
       <span aria-hidden="true">‹</span>
     </a>
-    <h1 class="barra__titulo">Nuevo voluntario</h1>
+    <h1 class="barra__titulo" id="titulo-pantalla">Nuevo voluntario</h1>
     <div class="barra__acciones">
       <span class="estado-sync" id="estado-sync">
         <span aria-hidden="true" id="estado-sync-icono">✓</span>
@@ -73,7 +76,9 @@
 
   <div class="contenedor">
     <main class="contenido-formulario">
-      <form id="form-voluntario" novalidate>
+      <form id="form-voluntario">
+        <div class="aviso aviso--error oculto" id="aviso-formulario" role="alert"></div>
+
         <div class="campo">
           <label class="campo__etiqueta" for="nombre-completo">
             Nombre completo <span class="requerido">*</span>
@@ -88,6 +93,23 @@
           </label>
           <input class="campo__control" id="correo" name="correo" type="email" required>
           <span class="campo__ayuda">Se usa para iniciar sesión</span>
+          <span class="campo__error oculto" id="error-correo"></span>
+        </div>
+
+        <div class="campo">
+          <label class="campo__etiqueta" for="contrasena">
+            Contraseña <span class="requerido">*</span>
+          </label>
+          <input class="campo__control" id="contrasena" name="contrasena" type="password"
+                 autocomplete="new-password" required>
+          <span class="campo__ayuda" id="ayuda-contrasena">La usará para iniciar sesión junto con su correo</span>
+        </div>
+
+        <div class="campo">
+          <label class="campo__etiqueta" for="telefono">Teléfono</label>
+          <input class="campo__control" id="telefono" name="telefono" type="tel"
+                 autocomplete="tel" inputmode="tel">
+          <span class="campo__ayuda">Opcional</span>
         </div>
 
         <div class="campo">
@@ -114,14 +136,31 @@
         </div>
 
         <div class="pila mt-4">
-          <button class="btn btn--bloque" type="submit">Guardar</button>
+          <button class="btn btn--bloque" type="submit" id="btn-guardar">Guardar</button>
+          <button class="btn btn--peligro btn--bloque oculto" type="button" id="btn-eliminar">Eliminar usuario</button>
           <a class="btn btn--fantasma btn--bloque" href="voluntarios.html">Cancelar</a>
         </div>
       </form>
     </main>
   </div>
 
-  <script>
+  <dialog class="dialogo" id="dialogo-eliminar">
+    <div class="dialogo__cuerpo">
+      <h3 class="dialogo__titulo" id="dialogo-titulo">¿Eliminar este usuario?</h3>
+      <p class="dialogo__texto">
+        Esta acción no se puede deshacer. Si solo quieres que deje de entrar,
+        mejor márcalo como inactivo: así se conservan sus registros.
+      </p>
+      <div class="dialogo__pie">
+        <button class="btn btn--secundario" type="button" id="btn-dialogo-volver">Volver</button>
+        <button class="btn btn--peligro" type="button" id="btn-dialogo-confirmar">Sí, eliminar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script type="module">
+    import { supabase } from './scripts/supabase.js';
+
     const estadoSync = document.getElementById('estado-sync');
     const estadoSyncIcono = document.getElementById('estado-sync-icono');
     const estadoSyncTexto = document.getElementById('estado-sync-texto');
@@ -129,7 +168,6 @@
     function actualizarEstadoSincronizacion() {
       const hayConexion = navigator.onLine;
       estadoSync.classList.toggle('estado-sync--sin-conexion', !hayConexion);
-      estadoSyncIcono.textContent = hayConexion ? '✓' : '⚠';
       estadoSyncTexto.textContent = hayConexion ? 'Sincronizado' : 'Sin conexión';
     }
 
@@ -137,8 +175,203 @@
     window.addEventListener('offline', actualizarEstadoSincronizacion);
     actualizarEstadoSincronizacion();
 
-    document.getElementById('form-voluntario').addEventListener('submit', (evento) => {
+    const form = document.getElementById('form-voluntario');
+    const inputNombre = document.getElementById('nombre-completo');
+    const inputCorreo = document.getElementById('correo');
+    const inputContrasena = document.getElementById('contrasena');
+    const inputTelefono = document.getElementById('telefono');
+    const selectRol = document.getElementById('rol');
+    const inputActivo = document.getElementById('activo');
+    const campoCorreo = inputCorreo.closest('.campo');
+    const errorCorreo = document.getElementById('error-correo');
+    const avisoFormulario = document.getElementById('aviso-formulario');
+    const btnGuardar = document.getElementById('btn-guardar');
+    const btnEliminar = document.getElementById('btn-eliminar');
+    const dialogo = document.getElementById('dialogo-eliminar');
+    const btnDialogoVolver = document.getElementById('btn-dialogo-volver');
+    const btnDialogoConfirmar = document.getElementById('btn-dialogo-confirmar');
+
+    function mostrarErrorCorreo(mensaje) {
+      campoCorreo.classList.add('campo--error');
+      errorCorreo.textContent = mensaje;
+      errorCorreo.classList.remove('oculto');
+    }
+
+    function limpiarErrorCorreo() {
+      campoCorreo.classList.remove('campo--error');
+      errorCorreo.classList.add('oculto');
+    }
+
+    function mostrarAviso(mensaje) {
+      avisoFormulario.textContent = mensaje;
+      avisoFormulario.classList.remove('oculto');
+    }
+
+    function limpiarAviso() {
+      avisoFormulario.classList.add('oculto');
+    }
+
+    function bloquearFormulario(bloqueado) {
+      form.querySelectorAll('input, select, button').forEach((el) => { el.disabled = bloqueado; });
+    }
+
+    const idUsuario = new URLSearchParams(window.location.search).get('id');
+    const editando = idUsuario !== null;
+    const idValido = editando && /^[\w-]+$/.test(idUsuario);
+    let nombreCargado = '';
+
+    function esUsuarioEnSesion() {
+      try {
+        const sesion = JSON.parse(localStorage.getItem('nido_usuario'));
+        return sesion !== null && String(sesion.id) === idUsuario;
+      } catch {
+        return false;
+      }
+    }
+
+    async function cargarUsuario() {
+      bloquearFormulario(true);
+
+      const { data, error } = await supabase
+        .from('usuarios')
+        .select('nombre, correo, telefono, rol, activo')
+        .eq('id', idUsuario)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error de Supabase al leer el usuario:', error);
+        mostrarAviso('No se pudo cargar el usuario. Revisa tu conexión y vuelve a abrir esta pantalla.');
+        return;
+      }
+
+      if (!data) {
+        mostrarAviso('Este usuario ya no existe. Puede que alguien lo haya eliminado.');
+        return;
+      }
+
+      nombreCargado = data.nombre;
+      inputNombre.value = data.nombre ?? '';
+      inputCorreo.value = data.correo ?? '';
+      inputTelefono.value = data.telefono ?? '';
+      selectRol.value = data.rol === 'voluntario' ? 'voluntario' : 'coordinador';
+      inputActivo.checked = data.activo !== false;
+      bloquearFormulario(false);
+    }
+
+    if (editando) {
+      document.title = 'Editar voluntario — NIDO';
+      document.getElementById('titulo-pantalla').textContent = 'Editar voluntario';
+
+      inputContrasena.required = false;
+      document.querySelector('label[for="contrasena"] .requerido')?.remove();
+      document.getElementById('ayuda-contrasena').textContent =
+        'Déjala vacía para conservar la contraseña actual';
+
+      if (!esUsuarioEnSesion()) btnEliminar.classList.remove('oculto');
+
+      if (idValido) {
+        cargarUsuario();
+      } else {
+        bloquearFormulario(true);
+        mostrarAviso('El enlace no es válido: falta indicar qué usuario editar.');
+      }
+    }
+
+    form.addEventListener('submit', async (evento) => {
       evento.preventDefault();
+      limpiarErrorCorreo();
+      limpiarAviso();
+
+      const datos = {
+        nombre: inputNombre.value.trim(),
+        correo: inputCorreo.value.trim(),
+        telefono: inputTelefono.value.trim() || null,
+        rol: selectRol.value,
+        activo: inputActivo.checked
+      };
+      if (!editando || inputContrasena.value !== '') {
+        datos.password = inputContrasena.value;
+      }
+
+      btnGuardar.disabled = true;
+      btnGuardar.textContent = 'Guardando…';
+
+      let error = null;
+      let sinFilas = false;
+
+      if (editando) {
+        const respuesta = await supabase
+          .from('usuarios')
+          .update(datos)
+          .eq('id', idUsuario)
+          .select('id');
+        error = respuesta.error;
+        sinFilas = !error && respuesta.data.length === 0;
+      } else {
+        const respuesta = await supabase
+          .from('usuarios')
+          .insert({ ...datos, creado_en: new Date().toISOString() });
+        error = respuesta.error;
+      }
+
+      btnGuardar.disabled = false;
+      btnGuardar.textContent = 'Guardar';
+
+      if (error) {
+        console.error('Error de Supabase al guardar usuario:', error);
+        const correoRepetido = error.code === '23505' && (error.details || '').includes('correo');
+        if (correoRepetido) {
+          mostrarErrorCorreo('Ya existe un usuario con ese correo.');
+        } else {
+          mostrarAviso('No se pudo guardar. Revisa tu conexión e intenta de nuevo.');
+        }
+        return;
+      }
+
+      if (sinFilas) {
+        mostrarAviso('No se guardaron los cambios: el usuario ya no existe o la base de datos no permite editarlo (falta la política de UPDATE en usuarios).');
+        return;
+      }
+
+      window.location.href = 'voluntarios.html';
+    });
+
+    btnEliminar.addEventListener('click', () => {
+      document.getElementById('dialogo-titulo').textContent =
+        `¿Eliminar a "${nombreCargado}"?`;
+      dialogo.showModal();
+    });
+
+    btnDialogoVolver.addEventListener('click', () => dialogo.close());
+
+    btnDialogoConfirmar.addEventListener('click', async () => {
+      btnDialogoConfirmar.disabled = true;
+      btnDialogoConfirmar.textContent = 'Eliminando…';
+
+      const { data, error } = await supabase
+        .from('usuarios')
+        .delete()
+        .eq('id', idUsuario)
+        .select('id');
+
+      btnDialogoConfirmar.disabled = false;
+      btnDialogoConfirmar.textContent = 'Sí, eliminar';
+      dialogo.close();
+
+      if (error) {
+        console.error('Error de Supabase al eliminar usuario:', error);
+        mostrarAviso(error.code === '23503'
+          ? 'No se puede eliminar este usuario porque tiene registros asociados. Márcalo como inactivo en su lugar.'
+          : 'No se pudo eliminar. Revisa tu conexión e intenta de nuevo.');
+        return;
+      }
+
+      if (data.length === 0) {
+        mostrarAviso('No se eliminó: el usuario ya no existe o la base de datos no permite borrarlo (falta la política de DELETE en usuarios).');
+        return;
+      }
+
+      window.location.href = 'voluntarios.html';
     });
   </script>
 </body>
