@@ -4,57 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Catálogos — NIDO</title>
-    <link rel="icon" href="src/icons/tortuga_logo.png">
-  <link rel="stylesheet" href="estilos/ui.css">
-  <style>
-    .pantalla-catalogos .contenedor { display: flex; flex-direction: column; }
-
-    .pantalla-catalogos .barra {
-      background: transparent; color: var(--color-texto);
-      border-bottom: 1px solid var(--color-borde);
-    }
-    .pantalla-catalogos .barra__volver {
-      padding: 0; min-width: var(--alto-control);
-    }
-
-    .estado-sync {
-      display: inline-flex; align-items: center; gap: var(--e-1);
-      font-size: var(--t-sm); font-weight: 600; color: var(--color-exito);
-      white-space: nowrap;
-    }
-    .estado-sync--sin-conexion { color: var(--color-aviso); }
-
-    .fila-catalogo { text-decoration: none; color: inherit; }
-    .fila-catalogo__texto {
-      display: flex; flex-direction: column; gap: var(--e-1); min-width: 0;
-    }
-    .fila-catalogo__texto .tarjeta__titulo { margin-bottom: 0; }
-    .fila-catalogo__chevron { color: var(--color-texto-tenue); flex: none; }
-
-    .fila-catalogo--conflicto { border-color: var(--color-error); }
-    .texto-conflicto { display: block; color: var(--color-error); font-weight: 600; }
-
-    .panel-catalogo { padding: var(--e-4) 0; flex: 1 1 auto; overflow-y: auto; }
-
-    .pie-catalogo {
-      padding: var(--e-4); padding-bottom: calc(var(--e-4) + env(safe-area-inset-bottom));
-      background: var(--color-fondo);
-      border-top: 1px solid var(--color-borde);
-    }
-
-    .tema-oscuro .esqueleto {
-      background: linear-gradient(90deg,
-                  var(--color-borde) 25%, var(--color-borde-fuerte) 50%, var(--color-borde) 75%);
-      background-size: 200% 100%;
-    }
-  </style>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/tortuga_logo.png">
+  <link rel="stylesheet" href="/css/ui.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script src="/config.js"></script>
+  <script src="/vendor/supabase.js"></script>
+  <script type="module" src="/js/app.js"></script>
 </head>
 <body class="tema-oscuro app pantalla-catalogos">
 
   <header class="barra">
-    <button class="btn btn--fantasma barra__volver" type="button" aria-label="Volver">
+    <a class="btn btn--fantasma barra__volver" href="/patrullajes.html" aria-label="Volver">
       <span aria-hidden="true">‹</span>
-    </button>
+    </a>
     <h1 class="barra__titulo">Catálogos</h1>
     <div class="barra__acciones">
       <span class="estado-sync" id="estado-sync">
@@ -63,6 +26,8 @@
       </span>
     </div>
   </header>
+
+  <div class="franja-offline" role="status">Sin conexión. Los datos se cargan al volver la señal.</div>
 
   <div class="contenedor">
     <div class="pestanas" role="tablist">
@@ -76,33 +41,19 @@
       <div class="pila" id="lista-tramos"></div>
     </div>
     <div class="pie-catalogo" data-pie-de="panel-tramos">
-      <a class="btn btn--bloque" href="alta-tramo.html">Nuevo tramo</a>
+      <a class="btn btn--bloque" href="/alta-tramo.html">Nuevo tramo</a>
     </div>
 
     <div class="panel-catalogo oculto" role="tabpanel" id="panel-especies" aria-labelledby="tab-especies">
       <div class="pila" id="lista-especies"></div>
     </div>
     <div class="pie-catalogo oculto" data-pie-de="panel-especies">
-      <a class="btn btn--bloque" href="alta-especie.html">Nueva especie</a>
+      <a class="btn btn--bloque" href="/alta-especie.html">Nueva especie</a>
     </div>
   </div>
 
   <script type="module">
-    import { supabase } from './scripts/supabase.js';
-
-    const estadoSync = document.getElementById('estado-sync');
-    const estadoSyncIcono = document.getElementById('estado-sync-icono');
-    const estadoSyncTexto = document.getElementById('estado-sync-texto');
-
-    function actualizarEstadoSincronizacion() {
-      const hayConexion = navigator.onLine;
-      estadoSync.classList.toggle('estado-sync--sin-conexion', !hayConexion);
-      estadoSyncTexto.textContent = hayConexion ? 'Sincronizado' : 'Sin conexión';
-    }
-
-    window.addEventListener('online', actualizarEstadoSincronizacion);
-    window.addEventListener('offline', actualizarEstadoSincronizacion);
-    actualizarEstadoSincronizacion();
+    import { supabase } from '/js/supabase.js';
 
     const pestanas = document.querySelectorAll('.pestana');
 
@@ -139,7 +90,7 @@
       if (items.length === 0) {
         contenedor.innerHTML = `
           <div class="estado-vacio">
-            <div class="estado-vacio__icono" aria-hidden="true"><img src="${textos.icono}" alt="" width="48" height="48"></div>
+            <div class="estado-vacio__icono" aria-hidden="true">${textos.icono}</div>
             <p class="estado-vacio__titulo">${textos.tituloVacio}</p>
             <p class="estado-vacio__texto">${textos.textoVacio}</p>
           </div>`;
@@ -165,13 +116,13 @@
     }
 
     const textosTramos = {
-      icono: 'src/icons/brujula.png',
+      icono: '🧭',
       tituloVacio: 'Todavía no hay tramos registrados',
       textoVacio: 'Cuando registres el primero, aparecerá aquí con su kilometraje.'
     };
 
     const textosEspecies = {
-      icono: 'src/icons/tortuga.png',
+      icono: '🐢',
       tituloVacio: 'Todavía no hay especies registradas',
       textoVacio: 'Cuando registres la primera, aparecerá aquí con sus días de incubación.'
     };
@@ -213,7 +164,7 @@
       }
 
       const items = data.map((tramo) => ({
-        href: `alta-tramo.html?id=${tramo.id}`,
+        href: `/alta-tramo.html?id=${tramo.id}`,
         titulo: tramo.nombre,
         detalle: [
           `km ${tramo.kilometro_inicial}–${tramo.kilometro_final}`,
@@ -240,7 +191,7 @@
       }
 
       const items = data.map((especie) => ({
-        href: `alta-especie.html?id=${especie.id}`,
+        href: `/alta-especie.html?id=${especie.id}`,
         titulo: especie.nombre_cientifico
           ? `${especie.nombre_cientifico} (${especie.nombre_comun})`
           : especie.nombre_comun,

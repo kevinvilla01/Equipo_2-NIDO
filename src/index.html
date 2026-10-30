@@ -4,25 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Iniciar sesión — NIDO</title>
-  <link rel="stylesheet" href="estilos/ui.css">
-  <link rel="icon" href="src/icons/tortuga_logo.png">
-  <style>
-    body.pantalla-login {
-      min-height: 100dvh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: var(--e-5);
-    }
-    .login { width: 100%; max-width: 380px; }
-    .login__marca { text-align: center; margin-bottom: var(--e-6); }
-  </style>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/tortuga_logo.png">
+  <link rel="stylesheet" href="/css/ui.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script src="/config.js"></script>
+  <script src="/vendor/supabase.js"></script>
+  <script type="module" src="/js/app.js"></script>
 </head>
 <body class="tema-oscuro pantalla-login">
 
   <main class="login">
     <div class="login__marca">
-      <img src="src/icons/tortuga_logo.png">
+      <img src="/icons/tortuga_logo.png" alt="" width="39" height="24">
       <h1 class="mb-0">NIDO</h1>
       <p class="tenue pequeno mb-0">Monitoreo y Conservación de Tortugas</p>
     </div>
@@ -45,13 +39,13 @@
     </form>
 
     <div class="aviso aviso--aviso mt-5 mb-0 oculto" id="aviso-offline">
-      <span><strong>Modo fuera de línea listo.</strong>
-        Inicia sesión localmente usando tus credenciales.</span>
+      <span><strong>Sin conexión.</strong>
+        Necesitas señal para iniciar sesión.</span>
     </div>
   </main>
 
   <script type="module">
-    import { supabase } from './scripts/supabase.js';
+    import { supabase } from '/js/supabase.js';
 
     const avisoOffline = document.getElementById('aviso-offline');
 
@@ -80,7 +74,7 @@
     }
 
     function pantallaSegunRol(rol) {
-      return rol === 'voluntario' ? 'patrullajes' : 'patrullajes';
+      return rol === 'voluntario' ? '/patrullajes.html' : '/patrullajes.html';
     }
 
     form.addEventListener('submit', async (evento) => {

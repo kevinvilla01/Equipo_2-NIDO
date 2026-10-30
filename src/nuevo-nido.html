@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nuevo nido — NIDO</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/tortuga_logo.png">
+  <link rel="stylesheet" href="/css/ui.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script src="/config.js"></script>
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body class="tema-oscuro app pantalla-formulario con-nav-inferior">
+
+  <header class="barra">
+    <h1 class="barra__titulo">Nuevo nido</h1>
+    <div class="barra__acciones">
+      <span class="estado-sync" id="estado-sync">
+        <span aria-hidden="true" id="estado-sync-icono">✓</span>
+        <span id="estado-sync-texto">En línea</span>
+      </span>
+    </div>
+  </header>
+
+  <div class="franja-offline" role="status">Sin conexión. Los nidos se guardan en el teléfono.</div>
+
+  <div class="contenedor">
+    <main class="contenido-formulario">
+      <form id="form-nido" novalidate>
+        <div class="campo" id="campo-tramo">
+          <label class="campo__etiqueta" for="tramo">Tramo <span class="requerido">*</span></label>
+          <select class="campo__control" id="tramo" name="tramo_id" required>
+            <option value="">Selecciona un tramo</option>
+          </select>
+          <span class="campo__error oculto">Selecciona el tramo.</span>
+        </div>
+
+        <div class="campo" id="campo-especie">
+          <label class="campo__etiqueta" for="especie">Especie <span class="requerido">*</span></label>
+          <select class="campo__control" id="especie" name="especie_id" required>
+            <option value="">Selecciona una especie</option>
+          </select>
+          <span class="campo__error oculto">Selecciona la especie.</span>
+        </div>
+
+        <div class="campo" id="campo-referencia">
+          <label class="campo__etiqueta" for="referencia">Referencia de ubicación <span class="requerido">*</span></label>
+          <input class="campo__control" id="referencia" name="referencia_ubicacion" type="text" autocomplete="off" required
+                 placeholder="Ej. 20 m al norte de la caseta 3">
+          <span class="campo__ayuda">Describe cómo encontrar el nido en la playa.</span>
+          <span class="campo__error oculto">Escribe la referencia de ubicación.</span>
+        </div>
+
+        <button class="btn btn--bloque mt-3" type="submit" id="btn-guardar">Guardar nido</button>
+      </form>
+
+      <div class="aviso oculto mt-5" id="aviso" role="status"></div>
+
+      <div class="encabezado mt-5">
+        <h2>Nidos en este teléfono</h2>
+        <span class="etiqueta etiqueta--pendiente oculto" id="contador"></span>
+      </div>
+      <ul class="pila lista-limpia" id="lista-nidos"></ul>
+      <div class="estado-vacio" id="lista-vacia">
+        <div class="estado-vacio__icono" aria-hidden="true">🥚</div>
+        <p class="estado-vacio__titulo">Sin nidos todavía</p>
+        <p class="estado-vacio__texto mb-0">Aún no hay nidos registrados en este teléfono.</p>
+      </div>
+    </main>
+  </div>
+
+  <nav class="nav-inferior" data-activa="nidos"></nav>
+
+  <script type="module">
+    import { guardarNido, listarNidos } from '/js/db.js';
+    import { cargarCatalogo, CAMPO_NOMBRE } from '/js/catalogos.js';
+    import { generarUUID } from '/js/uuid.js';
+
+    const aviso = document.getElementById('aviso');
+    const selectTramo = document.getElementById('tramo');
+    const selectEspecie = document.getElementById('especie');
+    const inputReferencia = document.getElementById('referencia');
+    const nombres = { tramos: new Map(), especies: new Map() };
+
+    function mostrarAviso(texto, tipo) {
+      aviso.textContent = texto;
+      aviso.className = `aviso aviso--${tipo} mt-5`;
+    }
+
+    async function llenarSelect(select, tabla) {
+      const registros = await cargarCatalogo(tabla);
+      const nombreDe = (registro) => String(registro[CAMPO_NOMBRE[tabla]]);
+      registros
+        .slice()
+        .sort((a, b) => nombreDe(a).localeCompare(nombreDe(b), 'es'))
+        .forEach((registro) => {
+          nombres[tabla].set(registro.id, nombreDe(registro));
+          select.add(new Option(nombreDe(registro), registro.id));
+        });
+      return registros.length;
+    }
+
+    function validarCampo(idCampo, valido) {
+      const campo = document.getElementById(idCampo);
+      campo.classList.toggle('campo--error', !valido);
+      campo.querySelector('.campo__error').classList.toggle('oculto', valido);
+      return valido;
+    }
+
+    function validar() {
+      const tramoOk = validarCampo('campo-tramo', selectTramo.value !== '');
+      const especieOk = validarCampo('campo-especie', selectEspecie.value !== '');
+      const referenciaOk = validarCampo('campo-referencia', inputReferencia.value.trim() !== '');
+      return tramoOk && especieOk && referenciaOk;
+    }
+
+    async function pintarLista() {
+      const nidos = (await listarNidos()).sort((a, b) => b.creado_en.localeCompare(a.creado_en));
+      const lista = document.getElementById('lista-nidos');
+      lista.replaceChildren(...nidos.map((nido) => {
+        const item = document.createElement('li');
+        item.className = 'tarjeta';
+        const fila = document.createElement('div');
+        fila.className = 'fila entre';
+        const titulo = document.createElement('span');
+        titulo.className = 'tarjeta__titulo';
+        titulo.textContent = nombres.especies.get(nido.especie_id) ?? 'Especie';
+        const badge = document.createElement('span');
+        badge.className = nido.pendiente_envio ? 'etiqueta etiqueta--pendiente' : 'etiqueta etiqueta--completado';
+        badge.textContent = nido.pendiente_envio ? 'Pendiente de envío' : 'Enviado';
+        fila.append(titulo, badge);
+        const detalle = document.createElement('div');
+        detalle.className = 'tarjeta__texto mb-0 mt-3';
+        const tramo = nombres.tramos.get(nido.tramo_id) ?? 'Tramo';
+        const hora = new Date(nido.creado_en).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
+        detalle.textContent = `${tramo} · ${nido.referencia_ubicacion} · ${hora}`;
+        item.append(fila, detalle);
+        return item;
+      }));
+      const pendientes = nidos.filter((nido) => nido.pendiente_envio).length;
+      const contador = document.getElementById('contador');
+      contador.textContent = `${pendientes} ${pendientes === 1 ? 'pendiente' : 'pendientes'}`;
+      contador.classList.toggle('oculto', pendientes === 0);
+      document.getElementById('lista-vacia').classList.toggle('oculto', nidos.length > 0);
+    }
+
+    document.getElementById('form-nido').addEventListener('submit', async (evento) => {
+      evento.preventDefault();
+      // Sin tramo, especie y referencia no se escribe nada, ni local ni remoto.
+      if (!validar()) return;
+
+      const ahora = new Date();
+      // Mismas columnas que la tabla nidos; el id lo asigna Supabase.
+      // TODO(HU-16): al sincronizar, upsert con onConflict 'clave' y mandar pendiente_envio: false,
+      // porque el default del servidor es true.
+      const nido = {
+        clave: generarUUID(),
+        tramo_id: Number(selectTramo.value),
+        especie_id: Number(selectEspecie.value),
+        referencia_ubicacion: inputReferencia.value.trim(),
+        // Fecha local: con toISOString() después de las 18:00 en México saldría el día siguiente.
+        fecha_hallazgo: ahora.toLocaleDateString('en-CA'),
+        estado: 'registrado',
+        pendiente_envio: true,
+        // Hora del hallazgo, no de la sincronización.
+        creado_en: ahora.toISOString(),
+        patrullaje_id: null,
+      };
+
+      const boton = document.getElementById('btn-guardar');
+      boton.disabled = true;
+      try {
+        await guardarNido(nido);
+        evento.target.reset();
+        mostrarAviso('Nido guardado en el teléfono. Queda pendiente de envío.', 'exito');
+        await pintarLista();
+      } catch (err) {
+        console.error('No se pudo guardar el nido:', err);
+        mostrarAviso('No se pudo guardar el nido en el teléfono. Intenta de nuevo.', 'error');
+      } finally {
+        boton.disabled = false;
+      }
+    });
+
+    const [totalTramos, totalEspecies] = await Promise.all([
+      llenarSelect(selectTramo, 'tramos'),
+      llenarSelect(selectEspecie, 'especies'),
+    ]);
+    if (totalTramos === 0 || totalEspecies === 0) {
+      mostrarAviso('No hay tramos o especies en este teléfono. Abre esta pantalla una vez con señal para descargarlos.', 'error');
+    }
+    await pintarLista();
+  </script>
+</body>
+</html>
