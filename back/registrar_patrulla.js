@@ -7,10 +7,22 @@ async function registrarPatrullaje() {
   const Fecha = document.getElementById('fecha').value;
   const voluntariosIds = obtenerVoluntariosSeleccionados();
 
+
+
   if (!Fecha || !horaInicio || !tramoId) {
     alert('Completa la fecha, la hora de inicio y el tramo');
     return;
   }
+
+  const inicio = new Date(`${Fecha}T${horaInicio}:00`);
+  const ahora = new Date();
+  ahora.setSeconds(0, 0);
+
+  if (inicio < ahora) {
+    alert('La fecha y hora de inicio no pueden ser anteriores al momento actual.');
+    return;
+  }
+
 
   if (voluntariosIds.length === 0) {
     alert('Selecciona al menos un voluntario');
@@ -114,8 +126,18 @@ async function cargarTramos() {
 cargarTramos();
 
 const hoy = new Date();
-document.getElementById('fecha').value =
-  `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+const hoyTexto = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+
+const fechaEl = document.getElementById('fecha');
+fechaEl.value = hoyTexto;
+fechaEl.min = hoyTexto;
+
+const ahorita = new Date();
+const horaEl = document.getElementById('hora-inicio');
+horaEl.value = `${String(ahorita.getHours()).padStart(2, '0')}:${String(ahorita.getMinutes()).padStart(2, '0')}`;
+
+
+
 
 
 document.getElementById('btn-guardar').addEventListener('click', registrarPatrullaje);

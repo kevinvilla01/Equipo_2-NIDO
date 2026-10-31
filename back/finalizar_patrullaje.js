@@ -118,4 +118,9 @@ const { data, error } = await supabase
 
 
   }
+
+    const ahorita = new Date();
+    const horaEl = document.getElementById('hora-fin');
+    horaEl.value = `${String(ahorita.getHours()).padStart(2, '0')}:${String(ahorita.getMinutes()).padStart(2, '0')}`;
+
   document.getElementById('btn-finalizar').addEventListener('click', finalizarPatrullaje);

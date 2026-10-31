@@ -193,7 +193,7 @@ body {
 }
 
 .field input[type="time"] {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 .field input[type="time"]::-webkit-calendar-picker-indicator {

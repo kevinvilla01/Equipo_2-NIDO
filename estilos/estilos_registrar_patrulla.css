@@ -95,6 +95,7 @@ body {
   flex-shrink: 0;
 }
 
+
 /* Form fields */
 .form-content {
   flex: 1;
@@ -139,7 +140,7 @@ body {
 
 .field input[type="time"],
 .field input[type="date"] {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 .field input[type="time"]::-webkit-calendar-picker-indicator,
