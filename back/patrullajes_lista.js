@@ -1,6 +1,9 @@
 import { supabase } from './supabase.js';
 
 const listEl = document.getElementById('patrol-list');
+const listElCompleted = document.getElementById('patrol-list-completed');
+
+
 
 // Convierte "2026-09-26" -> "Ayer", "Hoy" o "26 sep"
 function formatFecha(fechaStr) {
@@ -36,6 +39,7 @@ function crearTarjeta(patrullaje) {
     finalizado
 
   } = patrullaje;
+  
 
   const nombreTramo = tramo_id?.nombre ?? 'Sin tramo asignado';
   const titulo = tituloPorHora(hora_inicio);
@@ -85,7 +89,7 @@ const Voluntarios = (patrullaje_voluntario ?? [])
     `;
 }
 
-async function cargarPatrullajes() {
+async function cargarPatrullajesCreados() {
   const { data, error } = await supabase
     .from('patrullajes')
     .select(`
@@ -95,6 +99,7 @@ async function cargarPatrullajes() {
       patrullaje_voluntario ( usuarios ( nombre ) )
 
     `)
+    .eq('finalizado', false)
     .order('creado_en', { ascending: false });
 
   if (error) {
@@ -111,6 +116,34 @@ async function cargarPatrullajes() {
   listEl.innerHTML = data.map(crearTarjeta).join('');
 }
 
-  cargarPatrullajes();
+async function cargarPatrullajesCompletados() {
+  const { data, error } = await supabase
+    .from('patrullajes')
+    .select(`
+      id, fecha, hora_inicio, hora_fin, marea, fase_lunar, clima,
+      observaciones, pendiente_envio, creado_en, finalizado,
+      tramo_id:tramos ( nombre ),
+      patrullaje_voluntario ( usuarios ( nombre ) )
+
+    `)
+    .eq('finalizado', true)
+    .order('creado_en', { ascending: false });
+
+  if (error) {
+    console.error(error);
+    listEl.innerHTML = `<p class="state-msg">No se pudieron cargar los patrullajes.</p>`;
+    return;
+  }
+
+  if (!data || data.length === 0) {
+    listEl.innerHTML = `<p class="state-msg">Aún no hay patrullajes registrados.</p>`;
+    return;
+  }
+
+  listElCompleted.innerHTML = data.map(crearTarjeta).join('');
+}
+
+  cargarPatrullajesCreados();
+  cargarPatrullajesCompletados();
 
 

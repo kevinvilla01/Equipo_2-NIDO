@@ -17,9 +17,30 @@
         Sincronizado
       </span>
     </header>
+<!--  -->
+      <div class="filtros">
+        <input type="search" id="buscar-tramo" placeholder="Buscar por tramo..." autocomplete="off">
+        <input type="date" id="filtro-fecha">
+        <button type="button" id="limpiar-filtros" class="btn-limpiar">Limpiar</button>
+      </div>
+<!--  -->
 
-      <main class="list" id="patrol-list">
-        <p class="state-msg">Cargando patrullajes...</p>
+      <main class="list">
+
+        <div class="lista-titulo">
+          <h3>Patrullajes creados</h3>
+          <div class="lista-creados" id="patrol-list">
+            <p class="state-msg">Cargando patrullajes...</p>
+          </div>
+        </div>
+
+        <div class="lista-titulo">
+            <h3>Patrullajes completados</h3>
+        <div class="lista-completados" id="patrol-list-completed">
+        
+          <p class="state-msg">Cargando patrullajes...</p>
+        </div>
+        </div>
       </main>
 
     <div class="cta-wrap">

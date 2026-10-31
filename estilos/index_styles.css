@@ -16,25 +16,31 @@
   padding: 0;
 }
 
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   background: var(--bg);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   color: var(--text-primary);
   display: flex;
   justify-content: center;
-  min-height: 100vh;
   padding: 24px 12px;
 }
+
+
 
 .phone {
   width: 100%;
   max-width: 400px;
+  height: 100%;
   background: var(--bg);
   border-radius: 28px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  min-height: 640px;
 }
 
 .content {
@@ -94,11 +100,25 @@ body {
 /* List / cards */
 .list {
   flex: 1;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
   gap: 16px;
   padding: 4px 16px 16px;
-  overflow-y: auto;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.list {
+  background-image: linear-gradient(to bottom, var(--divider), var(--divider));
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: 1px 100%;
+  background-attachment: local;
+}
+
+.lista-titulo h3{
+  margin-bottom: 15px;
+  font-size: 1.25rem;
 }
 
 .card {
@@ -107,6 +127,7 @@ body {
   border-left: 3px solid var(--accent-red);
   border-radius: 10px;
   padding: 18px;
+  margin-bottom: 10px;
 }
 
 .card-pending {
@@ -276,7 +297,7 @@ body {
   .card {
     padding: 14px;
   }
-}
+} 
 
 /* Tablet: keep the phone card but give it room to breathe */
 @media (min-width: 480px) and (max-width: 899px) {
@@ -319,11 +340,15 @@ body {
   .list {
     flex: 1;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    align-content: start;
+    grid-template-columns: repeat(2, 1fr);
     gap: 20px;
     padding: 4px 40px 24px;
   }
+
+  .lista-titulo h3{
+  margin-left: 28px;
+}
+
 
   .cta-wrap {
     padding: 16px 40px 32px;
@@ -362,5 +387,9 @@ body {
   .icon-tab {
     width: 20px;
     height: 20px;
+  }
+
+  .card{
+    margin-inline: 30px;
   }
 }
