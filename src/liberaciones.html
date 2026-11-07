@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Liberaciones — NIDO</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/tortuga_logo.png">
+  <link rel="stylesheet" href="/css/ui.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script src="/config.js"></script>
+  <script src="/vendor/supabase.js"></script>
+  <script type="module" src="/js/app.js"></script>
+  <style>
+    .pantalla-liberaciones .contenedor { display: flex; flex-direction: column; }
+
+    .pantalla-liberaciones .barra {
+      background: transparent; color: var(--color-texto);
+      border-bottom: 1px solid var(--color-borde);
+    }
+
+    .estado-sync {
+      display: inline-flex; align-items: center; gap: var(--e-1);
+      font-size: var(--t-sm); font-weight: 600; color: var(--color-exito);
+      white-space: nowrap;
+    }
+    .estado-sync--sin-conexion,
+    .estado-sync--pendiente { color: var(--color-aviso); }
+
+    .panel-liberaciones { padding: var(--e-4) 0; flex: 1 1 auto; overflow-y: auto; }
+    .pie-liberaciones {
+      padding: var(--e-4); padding-bottom: calc(var(--e-4) + env(safe-area-inset-bottom));
+      background: var(--color-fondo); border-top: 1px solid var(--color-borde);
+    }
+
+    .tarjeta-liberacion {
+      display: flex; flex-direction: column; gap: var(--e-3);
+      border-left: 4px solid var(--color-exito);
+    }
+    .tarjeta-liberacion--pendiente { border-left-color: var(--color-aviso); }
+
+    .tarjeta-liberacion__encabezado {
+      display: flex; align-items: center; justify-content: space-between; gap: var(--e-3);
+    }
+    .tarjeta-liberacion__titulo { margin: 0; font-size: var(--t-lg); font-weight: 600; }
+
+    .tarjeta-liberacion__datos {
+      display: flex; flex-direction: column; gap: var(--e-1);
+      color: var(--color-texto-suave); font-size: var(--t-sm);
+    }
+
+    .tarjeta-liberacion__pie {
+      display: flex; align-items: center; justify-content: space-between; gap: var(--e-3);
+      border-top: 1px solid var(--color-borde); padding-top: var(--e-3);
+      color: var(--color-texto-tenue); font-size: var(--t-sm);
+    }
+
+    .badge-estado {
+      display: inline-flex; align-items: center; gap: var(--e-1);
+      padding: 2px var(--e-3); border-radius: var(--radio-full);
+      border: 1px solid var(--color-borde-fuerte); color: var(--color-texto-suave);
+      font-size: var(--t-xs); font-weight: 600; white-space: nowrap;
+    }
+    .badge-estado::before { content: "●"; font-size: 8px; }
+
+    .tema-oscuro .esqueleto {
+      background: linear-gradient(90deg,
+                  var(--color-borde) 25%, var(--color-borde-fuerte) 50%, var(--color-borde) 75%);
+      background-size: 200% 100%;
+    }
+  </style>
+</head>
+<body class="tema-oscuro app pantalla-liberaciones">
+
+  <header class="barra">
+    <h1 class="barra__titulo">Liberaciones Activas</h1>
+    <div class="barra__acciones">
+      <span class="estado-sync" id="estado-sync">
+        <span aria-hidden="true" id="estado-sync-icono">✓</span>
+        <span id="estado-sync-texto">Sincronizado</span>
+      </span>
+    </div>
+  </header>
+
+  <div class="contenedor">
+    <div class="panel-liberaciones">
+      <div class="pila" id="lista-liberaciones"></div>
+    </div>
+    <div class="pie-liberaciones">
+      <a class="btn btn--bloque" href="nueva-liberacion.html">Nueva liberación</a>
+    </div>
+  </div>
+
+  <script type="module">
+    import { supabase } from './scripts/supabase.js';
+
+    const estadoSync = document.getElementById('estado-sync');
+    const estadoSyncIcono = document.getElementById('estado-sync-icono');
+    const estadoSyncTexto = document.getElementById('estado-sync-texto');
+
+    function actualizarEstadoSincronizacion() {
+      const hayConexion = navigator.onLine;
+      estadoSync.classList.toggle('estado-sync--sin-conexion', !hayConexion);
+      estadoSyncTexto.textContent = hayConexion ? 'Sincronizado' : 'Sin conexión';
+    }
+
+    window.addEventListener('online', actualizarEstadoSincronizacion);
+    window.addEventListener('offline', actualizarEstadoSincronizacion);
+    actualizarEstadoSincronizacion();
+
+    const lista = document.getElementById('lista-liberaciones');
+    const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+    function escaparHTML(valor) {
+      const div = document.createElement('div');
+      div.textContent = valor;
+      return div.innerHTML;
+    }
+
+    function formatearFechaHora(fecha, hora) {
+      const [anio, mes, dia] = String(fecha).split('-').map(Number);
+      const diaLiberacion = new Date(anio, mes - 1, dia);
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      const ayer = new Date(hoy);
+      ayer.setDate(hoy.getDate() - 1);
+
+      let texto;
+      if (diaLiberacion.getTime() === hoy.getTime()) {
+        texto = 'Hoy';
+      } else if (diaLiberacion.getTime() === ayer.getTime()) {
+        texto = 'Ayer';
+      } else {
+        texto = `${dia} ${MESES[mes - 1]}` + (anio !== hoy.getFullYear() ? ` ${anio}` : '');
+      }
+      return hora ? `${texto} · ${String(hora).slice(0, 5)}` : texto;
+    }
+
+    function mostrarCargando() {
+      lista.setAttribute('aria-busy', 'true');
+      lista.innerHTML = `
+        <div class="esqueleto esqueleto--tarjeta" aria-hidden="true"></div>
+        <div class="esqueleto esqueleto--tarjeta" aria-hidden="true"></div>`;
+    }
+
+    function mostrarVacio() {
+      lista.removeAttribute('aria-busy');
+      lista.innerHTML = `
+        <div class="estado-vacio">
+          <div class="estado-vacio__icono" aria-hidden="true"><img src="src/icons/tortuga.png" alt="" width="48" height="48"></div>
+          <p class="estado-vacio__titulo">Todavía no hay liberaciones registradas</p>
+          <p class="estado-vacio__texto">Cuando registres la primera, aparecerá aquí con su especie, su sitio y su estado de sincronización.</p>
+        </div>`;
+    }
+
+    function mostrarError() {
+      lista.removeAttribute('aria-busy');
+      lista.innerHTML = `
+        <div class="estado-error">
+          <p class="estado-error__titulo">No pudimos cargar las liberaciones</p>
+          <p class="estado-error__texto">
+            No se pudieron traer los datos. Revisa tu conexión; si el problema
+            sigue, avisa al equipo.
+          </p>
+          <button class="btn btn--secundario" type="button">Reintentar</button>
+        </div>`;
+      lista.querySelector('button').addEventListener('click', cargarLiberaciones);
+    }
+
+    async function cargarLiberaciones() {
+      mostrarCargando();
+
+      const { data: liberaciones, error } = await supabase
+        .from('liberaciones')
+        .select('id, nido_id, fecha, hora, cantidad_liberada, sitio, pendiente_envio')
+        .order('fecha', { ascending: false })
+        .order('hora', { ascending: false });
+
+      if (error) {
+        console.error('Error de Supabase al leer liberaciones:', error);
+        mostrarError();
+        return;
+      }
+
+      if (liberaciones.length === 0) {
+        mostrarVacio();
+        return;
+      }
+
+      const idsNido = [...new Set(liberaciones.map((l) => l.nido_id))];
+      const { data: nidos, error: errorNidos } = await supabase
+        .from('nidos')
+        .select('id, clave, especie_id')
+        .in('id', idsNido);
+
+      if (errorNidos) {
+        console.error('Error de Supabase al leer nidos:', errorNidos);
+        mostrarError();
+        return;
+      }
+
+      const idsEspecie = [...new Set(nidos.map((n) => n.especie_id).filter((id) => id != null))];
+      let especies = [];
+      if (idsEspecie.length > 0) {
+        const respuesta = await supabase
+          .from('especies')
+          .select('id, nombre_comun')
+          .in('id', idsEspecie);
+
+        if (respuesta.error) {
+          console.error('Error de Supabase al leer especies:', respuesta.error);
+          mostrarError();
+          return;
+        }
+        especies = respuesta.data;
+      }
+
+      const nidoPorId = new Map(nidos.map((n) => [n.id, n]));
+      const especiePorId = new Map(especies.map((e) => [e.id, e.nombre_comun]));
+
+      lista.removeAttribute('aria-busy');
+      lista.innerHTML = '';
+
+      liberaciones.forEach((liberacion) => {
+        const nido = nidoPorId.get(liberacion.nido_id);
+        const especie = (nido && especiePorId.get(nido.especie_id)) || 'Especie sin registrar';
+        const cantidad = liberacion.cantidad_liberada ?? 0;
+        const pendiente = liberacion.pendiente_envio === true;
+
+        const tarjeta = document.createElement('article');
+        tarjeta.className = 'tarjeta tarjeta-liberacion' +
+          (pendiente ? ' tarjeta-liberacion--pendiente' : '');
+        tarjeta.innerHTML = `
+          <div class="tarjeta-liberacion__encabezado">
+            <h2 class="tarjeta-liberacion__titulo">Liberación #${escaparHTML(liberacion.id)}</h2>
+            <span class="badge-estado">Registrado</span>
+          </div>
+          <div class="tarjeta-liberacion__datos">
+            <span>${escaparHTML(especie)} · ${cantidad} ${cantidad === 1 ? 'cría liberada' : 'crías liberadas'}</span>
+            ${liberacion.sitio ? `<span>${escaparHTML(liberacion.sitio)}</span>` : ''}
+            ${nido ? `<span>Nido ${escaparHTML(nido.clave)}</span>` : ''}
+          </div>
+          <div class="tarjeta-liberacion__pie">
+            <span>${escaparHTML(formatearFechaHora(liberacion.fecha, liberacion.hora))}</span>
+            <span class="estado-sync ${pendiente ? 'estado-sync--pendiente' : ''}">
+              ${pendiente ? 'Pendiente de sincronizar' : 'Sincronizado'}
+            </span>
+          </div>`;
+        lista.appendChild(tarjeta);
+      });
+    }
+
+    cargarLiberaciones();
+  </script>
+</body>
+</html>
