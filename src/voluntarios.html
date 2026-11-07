@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Voluntarios — NIDO</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/tortuga_logo.png">
+  <link rel="stylesheet" href="/css/ui.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body class="tema-oscuro app pantalla-voluntarios">
+
+  <header class="barra">
+    <a class="btn btn--fantasma barra__volver" href="/patrullajes.html" aria-label="Volver">
+      <span aria-hidden="true">‹</span>
+    </a>
+    <h1 class="barra__titulo">Voluntarios</h1>
+    <div class="barra__acciones">
+      <span class="estado-sync" id="estado-sync">
+        <span aria-hidden="true" id="estado-sync-icono">✓</span>
+        <span id="estado-sync-texto">Sincronizado</span>
+      </span>
+    </div>
+  </header>
+
+  <div class="contenedor">
+    <div class="chips-filtro" role="group" aria-label="Filtrar voluntarios">
+      <button class="chip-filtro" type="button" data-filtro="todos" aria-pressed="true">Todos</button>
+      <button class="chip-filtro" type="button" data-filtro="activos" aria-pressed="false">Activos</button>
+      <button class="chip-filtro" type="button" data-filtro="inactivos" aria-pressed="false">Inactivos</button>
+    </div>
+
+    <div class="panel-voluntarios">
+      <div class="pila" id="lista-voluntarios"></div>
+    </div>
+    <div class="pie-voluntarios">
+      <a class="btn btn--bloque" href="/alta-voluntario.html">Nuevo voluntario</a>
+    </div>
+  </div>
+
+  <script>
+    const datosVoluntarios = [];
+
+    let filtroActivo = 'todos';
+
+    function etiquetaRol(rol) {
+      return rol === 'coordinador' ? 'Coordinador' : 'Voluntario';
+    }
+
+    function renderizarVoluntarios() {
+      const contenedor = document.getElementById('lista-voluntarios');
+      contenedor.innerHTML = '';
+
+      const items = datosVoluntarios.filter((v) => {
+        if (filtroActivo === 'activos') return v.activo;
+        if (filtroActivo === 'inactivos') return !v.activo;
+        return true;
+      });
+
+      if (items.length === 0) {
+        const textoVacio = {
+          todos: 'Todavía no hay voluntarios registrados.',
+          activos: 'No hay voluntarios activos con este filtro.',
+          inactivos: 'No hay voluntarios inactivos con este filtro.'
+        }[filtroActivo];
+
+        contenedor.innerHTML = `
+          <div class="estado-vacio">
+            <div class="estado-vacio__icono" aria-hidden="true">🧑‍🤝‍🧑</div>
+            <p class="estado-vacio__titulo">Sin resultados</p>
+            <p class="estado-vacio__texto">${textoVacio}</p>
+          </div>`;
+        return;
+      }
+
+      items.forEach((item, indice) => {
+        const claseBadge = item.activo
+          ? `badge-rol--${item.rol}`
+          : 'badge-rol--inactivo';
+
+        const fila = document.createElement('div');
+        fila.className = 'tarjeta fila entre fila-voluntario';
+        fila.innerHTML = `
+          <div class="fila-voluntario__texto">
+            <span class="tarjeta__titulo">${item.nombre}</span>
+            <span class="fila-voluntario__badges">
+              <span class="badge-rol ${claseBadge}">${etiquetaRol(item.rol)}</span>
+            </span>
+            <span class="tenue pequeno">${item.correo}</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" data-indice="${indice}" ${item.activo ? 'checked' : ''}>
+            <span class="switch__pista" aria-hidden="true"></span>
+            <span class="solo-lectores">${item.nombre}: ${item.activo ? 'activo' : 'inactivo'}</span>
+          </label>`;
+        contenedor.appendChild(fila);
+      });
+
+      contenedor.querySelectorAll('.switch input').forEach((input) => {
+        input.addEventListener('change', (evento) => {
+          const indice = Number(evento.target.dataset.indice);
+          items[indice].activo = evento.target.checked;
+          renderizarVoluntarios();
+        });
+      });
+    }
+
+    document.querySelectorAll('.chip-filtro').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('.chip-filtro').forEach((otro) =>
+          otro.setAttribute('aria-pressed', 'false'));
+        chip.setAttribute('aria-pressed', 'true');
+        filtroActivo = chip.dataset.filtro;
+        renderizarVoluntarios();
+      });
+    });
+
+    renderizarVoluntarios();
+  </script>
+</body>
+</html>
