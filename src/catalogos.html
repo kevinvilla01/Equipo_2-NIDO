@@ -4,18 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Catálogos — NIDO</title>
-  <link rel="manifest" href="/manifest.json">
-  <link rel="icon" href="/icons/tortuga_logo.png">
-  <link rel="stylesheet" href="/css/ui.css">
-  <link rel="stylesheet" href="/css/app.css">
-  <script src="/config.js"></script>
-  <script src="/vendor/supabase.js"></script>
-  <script type="module" src="/js/app.js"></script>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/tortuga_logo.png">
+  <link rel="stylesheet" href="css/ui.css">
+  <link rel="stylesheet" href="css/app.css">
+  <script src="config.js"></script>
+  <script src="vendor/supabase.js"></script>
+  <script type="module" src="js/app.js"></script>
 </head>
 <body class="tema-oscuro app pantalla-catalogos">
 
   <header class="barra">
-    <a class="btn btn--fantasma barra__volver" href="/patrullajes.html" aria-label="Volver">
+    <a class="btn btn--fantasma barra__volver" href="patrullajes.html" aria-label="Volver">
       <span aria-hidden="true">‹</span>
     </a>
     <h1 class="barra__titulo">Catálogos</h1>
@@ -41,19 +41,19 @@
       <div class="pila" id="lista-tramos"></div>
     </div>
     <div class="pie-catalogo" data-pie-de="panel-tramos">
-      <a class="btn btn--bloque" href="/alta-tramo.html">Nuevo tramo</a>
+      <a class="btn btn--bloque" href="alta-tramo.html">Nuevo tramo</a>
     </div>
 
     <div class="panel-catalogo oculto" role="tabpanel" id="panel-especies" aria-labelledby="tab-especies">
       <div class="pila" id="lista-especies"></div>
     </div>
     <div class="pie-catalogo oculto" data-pie-de="panel-especies">
-      <a class="btn btn--bloque" href="/alta-especie.html">Nueva especie</a>
+      <a class="btn btn--bloque" href="alta-especie.html">Nueva especie</a>
     </div>
   </div>
 
   <script type="module">
-    import { supabase } from '/js/supabase.js';
+    import { supabase } from 'js/supabase.js';
 
     const pestanas = document.querySelectorAll('.pestana');
 

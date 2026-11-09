@@ -125,7 +125,15 @@ body {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
+  gap: 15px;
+}
+
+.summary-row-completed {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 20px;
 }
 
 .summary-label {
