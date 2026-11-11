@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reubicar nido — NIDO</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/tortuga_logo.png">
+  <link rel="stylesheet" href="/css/ui.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script src="/config.js"></script>
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body class="tema-oscuro app pantalla-formulario con-nav-inferior">
+
+  <header class="barra">
+    <a class="btn btn--fantasma barra__volver" href="/nuevo-nido.html" aria-label="Volver">
+      <span aria-hidden="true">‹</span>
+    </a>
+    <h1 class="barra__titulo">Reubicar al corral</h1>
+    <div class="barra__acciones">
+      <span class="estado-sync" id="estado-sync">
+        <span aria-hidden="true" id="estado-sync-icono">✓</span>
+        <span id="estado-sync-texto">En línea</span>
+      </span>
+    </div>
+  </header>
+
+  <div class="franja-offline" role="status">Sin conexión. La reubicación se guarda en el teléfono.</div>
+
+  <div class="contenedor">
+    <main class="contenido-formulario">
+      <div class="aviso oculto mb-5" id="aviso" role="alert"></div>
+
+      <section class="tarjeta mb-5" aria-label="Datos del nido">
+        <dl class="datos">
+          <dt>Especie</dt><dd id="d-especie">—</dd>
+          <dt>Tramo</dt><dd id="d-tramo">—</dd>
+          <dt>Ubicación</dt><dd id="d-referencia">—</dd>
+          <dt>Hallazgo</dt><dd id="d-hallazgo">—</dd>
+          <dt>Estado</dt><dd id="d-estado">—</dd>
+        </dl>
+      </section>
+
+      <form id="form-reubicar" novalidate>
+        <div class="campo" id="campo-corral">
+          <label class="campo__etiqueta" for="corral">Clave del corral <span class="requerido">*</span></label>
+          <input class="campo__control" id="corral" name="corral" type="text" autocomplete="off" required
+                 autocapitalize="characters" placeholder="Ej. C-12">
+          <span class="campo__ayuda">La que está escrita en la estaca del corral.</span>
+          <span class="campo__error oculto" data-error="corral"></span>
+        </div>
+
+        <div class="campo" id="campo-huevos">
+          <label class="campo__etiqueta" for="huevos">Número de huevos <span class="requerido">*</span></label>
+          <input class="campo__control" id="huevos" name="huevos" type="number" inputmode="numeric"
+                 min="1" step="1" required placeholder="Ej. 85">
+          <span class="campo__error oculto" data-error="huevos"></span>
+        </div>
+
+        <div class="tarjeta mt-3">
+          <dl class="datos">
+            <dt>Fecha de reubicación</dt><dd id="d-fecha-reubicacion">—</dd>
+            <dt>Eclosión estimada</dt><dd><strong id="d-fecha-estimada">—</strong></dd>
+          </dl>
+        </div>
+
+        <button class="btn btn--bloque mt-5" type="submit" id="btn-guardar">Pasar a corral</button>
+      </form>
+    </main>
+  </div>
+
+  <nav class="nav-inferior" data-activa="nidos"></nav>
+
+  <script type="module">
+    import { obtenerNido, actualizarNido } from '/js/db.js';
+    import { cargarCatalogo, CAMPO_NOMBRE } from '/js/catalogos.js';
+    import {
+      ESTADOS, ETIQUETA_ESTADO, puedeTransicionar, validarPasoACorral, calcularFechaEstimada,
+    } from '/js/estados-nido.js';
+
+    const aviso = document.getElementById('aviso');
+    const form = document.getElementById('form-reubicar');
+    const boton = document.getElementById('btn-guardar');
+    const inputCorral = document.getElementById('corral');
+    const inputHuevos = document.getElementById('huevos');
+    const clave = new URLSearchParams(window.location.search).get('clave');
+    // Fecha local: con toISOString() después de las 18:00 en México saldría el día siguiente.
+    const fechaReubicacion = new Date().toLocaleDateString('en-CA');
+
+    function mostrarAviso(texto, tipo = 'error') {
+      aviso.textContent = texto;
+      aviso.className = `aviso aviso--${tipo} mb-5`;
+    }
+
+    // 'YYYY-MM-DD' → 'DD/MM/AAAA' sin pasar por Date (evita el desfase de zona horaria).
+    function formatearFecha(fecha) {
+      if (!fecha) return '—';
+      const [anio, mes, dia] = fecha.split('-');
+      return `${dia}/${mes}/${anio}`;
+    }
+
+    function bloquearFormulario() {
+      form.querySelectorAll('input, button').forEach((control) => { control.disabled = true; });
+    }
+
+    function pintarErrores(errores) {
+      for (const campo of ['corral', 'huevos']) {
+        const mensaje = errores[campo];
+        document.getElementById(`campo-${campo}`).classList.toggle('campo--error', Boolean(mensaje));
+        const error = form.querySelector(`[data-error="${campo}"]`);
+        error.textContent = mensaje ?? '';
+        error.classList.toggle('oculto', !mensaje);
+      }
+    }
+
+    async function cargar() {
+      if (!clave) {
+        mostrarAviso('No se indicó el nido a reubicar. Vuelve a la lista y elige uno.');
+        bloquearFormulario();
+        return null;
+      }
+
+      const [nido, especies, tramos] = await Promise.all([
+        obtenerNido(clave),
+        cargarCatalogo('especies'),
+        cargarCatalogo('tramos'),
+      ]);
+      if (!nido) {
+        mostrarAviso('Este nido no está guardado en el teléfono.');
+        bloquearFormulario();
+        return null;
+      }
+
+      const especie = especies.find((registro) => registro.id === nido.especie_id);
+      const tramo = tramos.find((registro) => registro.id === nido.tramo_id);
+      document.getElementById('d-especie').textContent = especie?.[CAMPO_NOMBRE.especies] ?? 'Especie';
+      document.getElementById('d-tramo').textContent = tramo?.[CAMPO_NOMBRE.tramos] ?? 'Tramo';
+      document.getElementById('d-referencia').textContent = nido.referencia_ubicacion;
+      document.getElementById('d-hallazgo').textContent = formatearFecha(nido.fecha_hallazgo);
+      document.getElementById('d-estado').textContent = ETIQUETA_ESTADO[nido.estado] ?? nido.estado;
+      document.getElementById('d-fecha-reubicacion').textContent = formatearFecha(fechaReubicacion);
+
+      const dias = especie?.dias_incubacion_estimados ?? null;
+      const fechaEstimada = calcularFechaEstimada(fechaReubicacion, dias);
+      document.getElementById('d-fecha-estimada').textContent = fechaEstimada
+        ? `${formatearFecha(fechaEstimada)} (${dias} días)`
+        : 'Sin días de incubación';
+
+      if (!puedeTransicionar(nido.estado, ESTADOS.EN_CORRAL)) {
+        const { errores } = validarPasoACorral(nido, {});
+        mostrarAviso(errores.estado, 'aviso');
+        bloquearFormulario();
+        return null;
+      }
+      if (!fechaEstimada) {
+        mostrarAviso('La especie de este nido no tiene días de incubación. Pide al coordinador que los registre en Catálogos.');
+        bloquearFormulario();
+        return null;
+      }
+      return { nido, dias };
+    }
+
+    const contexto = await cargar();
+
+    form.addEventListener('submit', async (evento) => {
+      evento.preventDefault();
+      if (!contexto) return;
+
+      // Se relee el nido por si cambió en otra pestaña desde que se abrió la pantalla.
+      const nido = await obtenerNido(clave);
+      const resultado = validarPasoACorral(nido, { corral: inputCorral.value, huevos: inputHuevos.value });
+      if (!resultado.valido) {
+        if (resultado.errores.estado) {
+          mostrarAviso(resultado.errores.estado, 'aviso');
+          bloquearFormulario();
+        }
+        pintarErrores(resultado.errores);
+        return;
+      }
+      pintarErrores({});
+
+      // Mismas columnas que la tabla nidos. El servidor recalcula la fecha estimada en
+      // reubicar_nido(); aquí se calcula para verla sin señal.
+      const reubicado = {
+        ...nido,
+        estado: ESTADOS.EN_CORRAL,
+        corral: resultado.datos.corral,
+        huevos_contados: resultado.datos.huevos,
+        fecha_reubicacion: fechaReubicacion,
+        fecha_estimada_eclosion: calcularFechaEstimada(fechaReubicacion, contexto.dias),
+        // TODO(HU-16): enviar con la RPC reubicar_nido (contrato en el README).
+        pendiente_envio: true,
+      };
+
+      boton.disabled = true;
+      try {
+        await actualizarNido(reubicado);
+        window.location.href = '/nuevo-nido.html?aviso=reubicado';
+      } catch (err) {
+        console.error('No se pudo guardar la reubicación:', err);
+        mostrarAviso('No se pudo guardar la reubicación en el teléfono. Intenta de nuevo.');
+        boton.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

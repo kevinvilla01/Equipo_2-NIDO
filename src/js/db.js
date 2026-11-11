@@ -49,6 +49,15 @@ export function listarNidos() {
   return transaccion('nidos', 'readonly', (store) => store.getAll());
 }
 
+export function obtenerNido(clave) {
+  return transaccion('nidos', 'readonly', (store) => store.get(clave));
+}
+
+// Reemplaza el nido completo (mismo keyPath 'clave'); se usa en los cambios de estado.
+export function actualizarNido(nido) {
+  return transaccion('nidos', 'readwrite', (store) => store.put(nido));
+}
+
 export function guardarCatalogo(nombre, registros) {
   return transaccion('catalogos', 'readwrite', (store) =>
     store.put({ nombre, registros, actualizado_en: new Date().toISOString() }));
