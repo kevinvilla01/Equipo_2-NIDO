@@ -76,6 +76,7 @@
     import { guardarNido, listarNidos } from '/js/db.js';
     import { cargarCatalogo, CAMPO_NOMBRE } from '/js/catalogos.js';
     import { generarUUID } from '/js/uuid.js';
+    import { ESTADOS, ETIQUETA_ESTADO, puedeTransicionar } from '/js/estados-nido.js';
 
     const aviso = document.getElementById('aviso');
     const selectTramo = document.getElementById('tramo');
@@ -115,6 +116,12 @@
       return tramoOk && especieOk && referenciaOk;
     }
 
+    // 'YYYY-MM-DD' → 'DD/MM/AAAA' sin pasar por Date (evita el desfase de zona horaria).
+    function formatearFecha(fecha) {
+      const [anio, mes, dia] = fecha.split('-');
+      return `${dia}/${mes}/${anio}`;
+    }
+
     async function pintarLista() {
       const nidos = (await listarNidos()).sort((a, b) => b.creado_en.localeCompare(a.creado_en));
       const lista = document.getElementById('lista-nidos');
@@ -129,13 +136,33 @@
         const badge = document.createElement('span');
         badge.className = nido.pendiente_envio ? 'etiqueta etiqueta--pendiente' : 'etiqueta etiqueta--completado';
         badge.textContent = nido.pendiente_envio ? 'Pendiente de envío' : 'Enviado';
-        fila.append(titulo, badge);
+        const badges = document.createElement('span');
+        badges.className = 'fila';
+        const estado = document.createElement('span');
+        estado.className = nido.estado === ESTADOS.EN_CORRAL ? 'etiqueta etiqueta--proceso' : 'etiqueta';
+        estado.textContent = ETIQUETA_ESTADO[nido.estado] ?? nido.estado;
+        badges.append(estado, badge);
+        fila.append(titulo, badges);
         const detalle = document.createElement('div');
         detalle.className = 'tarjeta__texto mb-0 mt-3';
         const tramo = nombres.tramos.get(nido.tramo_id) ?? 'Tramo';
         const hora = new Date(nido.creado_en).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
         detalle.textContent = `${tramo} · ${nido.referencia_ubicacion} · ${hora}`;
         item.append(fila, detalle);
+        if (nido.estado === ESTADOS.EN_CORRAL) {
+          const corral = document.createElement('div');
+          corral.className = 'tarjeta__texto mb-0 mt-3';
+          const eclosion = nido.fecha_estimada_eclosion ? formatearFecha(nido.fecha_estimada_eclosion) : '—';
+          corral.textContent = `Corral ${nido.corral} · ${nido.huevos_contados} huevos · eclosión estimada ${eclosion}`;
+          item.append(corral);
+        }
+        if (puedeTransicionar(nido.estado, ESTADOS.EN_CORRAL)) {
+          const reubicar = document.createElement('a');
+          reubicar.className = 'btn btn--secundario btn--pequeno mt-3';
+          reubicar.href = `/reubicar-nido.html?clave=${encodeURIComponent(nido.clave)}`;
+          reubicar.textContent = 'Reubicar al corral';
+          item.append(reubicar);
+        }
         return item;
       }));
       const pendientes = nidos.filter((nido) => nido.pendiente_envio).length;
@@ -191,6 +218,13 @@
       mostrarAviso('No hay tramos o especies en este teléfono. Abre esta pantalla una vez con señal para descargarlos.', 'error');
     }
     await pintarLista();
+
+    // Aviso que deja reubicar-nido.html al volver; se quita de la URL para no repetirlo al recargar.
+    const parametros = new URLSearchParams(window.location.search);
+    if (parametros.get('aviso') === 'reubicado') {
+      mostrarAviso('Nido reubicado al corral en el teléfono. Queda pendiente de envío.', 'exito');
+      history.replaceState(null, '', window.location.pathname);
+    }
   </script>
 </body>
 </html>
