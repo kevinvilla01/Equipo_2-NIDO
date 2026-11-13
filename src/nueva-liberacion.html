@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nueva liberación — NIDO</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/tortuga_logo.png">
+  <link rel="stylesheet" href="/css/ui.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script src="/config.js"></script>
+  <script src="/vendor/supabase.js"></script>
+  <script type="module" src="/js/app.js"></script>
+  <style>
+    .pantalla-formulario .barra {
+      background: transparent; color: var(--color-texto);
+      border-bottom: 1px solid var(--color-borde);
+    }
+    .pantalla-formulario .barra__volver {
+      padding: 0; min-width: var(--alto-control);
+    }
+    .estado-sync {
+      display: inline-flex; align-items: center; gap: var(--e-1);
+      font-size: var(--t-sm); font-weight: 600; color: var(--color-exito);
+      white-space: nowrap;
+    }
+    .estado-sync--sin-conexion { color: var(--color-aviso); }
+
+    .pantalla-formulario .contenedor {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; flex: 1;
+    }
+
+    .contenido-formulario { width: 100%; max-width: 480px; }
+
+    .tema-oscuro input[type="date"],
+    .tema-oscuro input[type="time"] { color-scheme: dark; }
+  </style>
+</head>
+<body class="tema-oscuro app pantalla-formulario">
+
+  <header class="barra">
+    <a class="btn btn--fantasma barra__volver" href="liberaciones.html" aria-label="Volver">
+      <span aria-hidden="true">‹</span>
+    </a>
+    <h1 class="barra__titulo">Nueva Liberación</h1>
+    <div class="barra__acciones">
+      <span class="estado-sync" id="estado-sync">
+        <span aria-hidden="true" id="estado-sync-icono">✓</span>
+        <span id="estado-sync-texto">Sincronizado</span>
+      </span>
+    </div>
+  </header>
+
+  <div class="contenedor">
+    <main class="contenido-formulario">
+      <form id="form-liberacion">
+        <div class="aviso aviso--error oculto" id="aviso-formulario" role="alert"></div>
+
+        <div class="campo">
+          <label class="campo__etiqueta" for="nido">
+            Nido de origen <span class="requerido">*</span>
+          </label>
+          <select class="campo__control" id="nido" name="nido" required>
+            <option value="" selected disabled>Cargando nidos…</option>
+          </select>
+          <span class="campo__ayuda">Solo aparecen los nidos eclosionados que aún tienen crías por liberar</span>
+        </div>
+
+        <div class="campo">
+          <label class="campo__etiqueta" for="cantidad">
+            Crías liberadas <span class="requerido">*</span>
+          </label>
+          <input class="campo__control" id="cantidad" name="cantidad" type="number"
+                 min="1" step="1" inputmode="numeric" required>
+          <span class="campo__ayuda" id="ayuda-cantidad">Elige primero un nido</span>
+          <span class="campo__error oculto" id="error-cantidad"></span>
+        </div>
+
+        <div class="campo">
+          <label class="campo__etiqueta" for="fecha">
+            Fecha de liberación <span class="requerido">*</span>
+          </label>
+          <input class="campo__control" id="fecha" name="fecha" type="date" required>
+        </div>
+
+        <div class="campo">
+          <label class="campo__etiqueta" for="hora">
+            Hora de liberación <span class="requerido">*</span>
+          </label>
+          <input class="campo__control" id="hora" name="hora" type="time" required>
+          <span class="campo__ayuda">Hora local ideal para desorientar depredadores</span>
+        </div>
+
+        <div class="pila mt-4">
+          <button class="btn btn--bloque" type="submit" id="btn-registrar">Registrar liberación</button>
+        </div>
+      </form>
+    </main>
+  </div>
+
+  <script type="module">
+        import { supabase } from './scripts/supabase.js';
+
+    const estadoSync = document.getElementById('estado-sync');
+    const estadoSyncIcono = document.getElementById('estado-sync-icono');
+    const estadoSyncTexto = document.getElementById('estado-sync-texto');
+
+    function actualizarEstadoSincronizacion() {
+      const hayConexion = navigator.onLine;
+      estadoSync.classList.toggle('estado-sync--sin-conexion', !hayConexion);
+      estadoSyncTexto.textContent = hayConexion ? 'Sincronizado' : 'Sin conexión';
+    }
+
+    window.addEventListener('online', actualizarEstadoSincronizacion);
+    window.addEventListener('offline', actualizarEstadoSincronizacion);
+    actualizarEstadoSincronizacion();
+
+    const ESTADO_ECLOSIONADO = 'eclosionado';
+
+    const form = document.getElementById('form-liberacion');
+    const selectNido = document.getElementById('nido');
+    const inputCantidad = document.getElementById('cantidad');
+    const inputFecha = document.getElementById('fecha');
+    const inputHora = document.getElementById('hora');
+    const campoCantidad = inputCantidad.closest('.campo');
+    const ayudaCantidad = document.getElementById('ayuda-cantidad');
+    const errorCantidad = document.getElementById('error-cantidad');
+    const avisoFormulario = document.getElementById('aviso-formulario');
+    const btnRegistrar = document.getElementById('btn-registrar');
+
+    function mostrarAviso(mensaje) {
+      avisoFormulario.textContent = mensaje;
+      avisoFormulario.classList.remove('oculto');
+    }
+
+    function limpiarAviso() {
+      avisoFormulario.classList.add('oculto');
+    }
+
+    function mostrarErrorCantidad(mensaje) {
+      campoCantidad.classList.add('campo--error');
+      errorCantidad.textContent = mensaje;
+      errorCantidad.classList.remove('oculto');
+    }
+
+    function limpiarErrorCantidad() {
+      campoCantidad.classList.remove('campo--error');
+      errorCantidad.classList.add('oculto');
+    }
+
+    function bloquearFormulario(bloqueado) {
+      form.querySelectorAll('input, select, button').forEach((el) => { el.disabled = bloqueado; });
+    }
+
+    function textoCrias(n) {
+      return `${n} ${n === 1 ? 'cría' : 'crías'}`;
+    }
+
+    function hoyLocal() {
+      const ahora = new Date();
+      const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+      const dia = String(ahora.getDate()).padStart(2, '0');
+      return `${ahora.getFullYear()}-${mes}-${dia}`;
+    }
+
+    inputFecha.value = hoyLocal();
+    inputFecha.min = hoyLocal();
+
+    function leerSesion() {
+      try {
+        return JSON.parse(localStorage.getItem('nido_usuario'));
+      } catch {
+        return null;
+      }
+    }
+    const sesion = leerSesion();
+
+    let nidosDisponibles = [];
+
+    async function cargarNidos() {
+      bloquearFormulario(true);
+
+      if (!sesion || sesion.id == null) {
+        selectNido.options[0].textContent = 'Sin sesión';
+        mostrarAviso('Inicia sesión para registrar liberaciones: así sabemos quién es el responsable.');
+        return;
+      }
+
+      const { data: nidos, error } = await supabase
+        .from('nidos')
+        .select('id, clave, crias_vivas, referencia_ubicacion, tramo_id, especie_id')
+        .ilike('estado', ESTADO_ECLOSIONADO);
+
+      if (error) {
+        console.error('Error de Supabase al leer nidos:', error);
+        selectNido.options[0].textContent = 'No se pudieron cargar';
+        mostrarAviso('No se pudieron cargar los nidos. Revisa tu conexión y vuelve a abrir esta pantalla.');
+        return;
+      }
+
+      if (nidos.length === 0) {
+        selectNido.options[0].textContent = 'Sin nidos disponibles';
+        mostrarAviso('No hay nidos eclosionados para liberar.');
+        return;
+      }
+
+      const idsNido = nidos.map((n) => n.id);
+      const idsEspecie = [...new Set(nidos.map((n) => n.especie_id).filter((id) => id != null))];
+      const idsTramo = [...new Set(nidos.map((n) => n.tramo_id).filter((id) => id != null))];
+
+      const vacio = { data: [], error: null };
+      const [liberadas, especies, tramos] = await Promise.all([
+        supabase.from('liberaciones').select('nido_id, cantidad_liberada').in('nido_id', idsNido),
+        idsEspecie.length > 0
+          ? supabase.from('especies').select('id, nombre_comun').in('id', idsEspecie)
+          : vacio,
+        idsTramo.length > 0
+          ? supabase.from('tramos').select('id, nombre').in('id', idsTramo)
+          : vacio
+      ]);
+
+      if (liberadas.error || especies.error || tramos.error) {
+        console.error('Error de Supabase al leer datos de los nidos:',
+          liberadas.error || especies.error || tramos.error);
+        selectNido.options[0].textContent = 'No se pudieron cargar';
+        mostrarAviso('No se pudieron cargar los nidos. Revisa tu conexión y vuelve a abrir esta pantalla.');
+        return;
+      }
+
+      const yaLiberadas = new Map();
+      liberadas.data.forEach((l) => {
+        yaLiberadas.set(l.nido_id, (yaLiberadas.get(l.nido_id) || 0) + (l.cantidad_liberada || 0));
+      });
+      const nombreEspecie = new Map(especies.data.map((e) => [e.id, e.nombre_comun]));
+      const nombreTramo = new Map(tramos.data.map((t) => [t.id, t.nombre]));
+
+      nidosDisponibles = nidos
+        .map((nido) => {
+          const especie = nombreEspecie.get(nido.especie_id);
+          return {
+            id: nido.id,
+            etiqueta: `Nido ${nido.clave}` + (especie ? ` (${especie})` : ''),
+            restantes: (nido.crias_vivas ?? 0) - (yaLiberadas.get(nido.id) || 0),
+            sitio: [nombreTramo.get(nido.tramo_id), nido.referencia_ubicacion]
+              .filter(Boolean).join(' · ') || null
+          };
+        })
+        .filter((nido) => nido.restantes > 0);
+
+      if (nidosDisponibles.length === 0) {
+        selectNido.options[0].textContent = 'Sin nidos disponibles';
+        mostrarAviso('Los nidos eclosionados ya no tienen crías por liberar.');
+        return;
+      }
+
+      selectNido.innerHTML = '';
+      selectNido.add(new Option('Selecciona un nido', '', true, true));
+      selectNido.options[0].disabled = true;
+      nidosDisponibles.forEach((nido) => selectNido.add(new Option(nido.etiqueta, nido.id)));
+
+      bloquearFormulario(false);
+    }
+
+    selectNido.addEventListener('change', () => {
+      limpiarErrorCantidad();
+      const nido = nidosDisponibles.find((n) => String(n.id) === selectNido.value);
+      ayudaCantidad.textContent = nido
+        ? `Quedan ${textoCrias(nido.restantes)} por liberar de este nido`
+        : 'Elige primero un nido';
+    });
+
+    cargarNidos();
+
+    form.addEventListener('submit', async (evento) => {
+      evento.preventDefault();
+      limpiarAviso();
+      limpiarErrorCantidad();
+
+      const nido = nidosDisponibles.find((n) => String(n.id) === selectNido.value);
+      const cantidad = Number(inputCantidad.value);
+
+      if (!Number.isInteger(cantidad) || cantidad < 1) {
+        mostrarErrorCantidad('Escribe un número entero de crías mayor a 0.');
+        return;
+      }
+
+      if (cantidad > nido.restantes) {
+        mostrarErrorCantidad(`Solo quedan ${textoCrias(nido.restantes)} por liberar en este nido.`);
+        return;
+      }
+      
+      const momento = new Date(`${inputFecha.value}T${inputHora.value}`);
+      const ahora = new Date();
+      ahora.setSeconds(0, 0);
+      if (momento < ahora) {
+        mostrarAviso('La fecha y la hora de la liberación no pueden estar en el pasado.');
+        return;
+      }
+
+      btnRegistrar.disabled = true;
+      btnRegistrar.textContent = 'Registrando…';
+
+      const { error } = await supabase
+        .from('liberaciones')
+        .insert({
+          nido_id: nido.id,
+          fecha: inputFecha.value,
+          hora: inputHora.value,
+          cantidad_liberada: cantidad,
+          sitio: nido.sitio,
+          responsable_id: sesion.id,
+          pendiente_envio: false,
+          creado_en: new Date().toISOString()
+        });
+
+      btnRegistrar.disabled = false;
+      btnRegistrar.textContent = 'Registrar liberación';
+
+      if (error) {
+        console.error('Error de Supabase al registrar liberación:', error);
+        if (error.code === 'P0001') {
+          mostrarAviso(error.message);
+        } else if (error.code === '42501') {
+          mostrarAviso('La base de datos no permite registrar liberaciones (falta la política de INSERT en liberaciones).');
+        } else {
+          mostrarAviso('No se pudo registrar. Revisa tu conexión e intenta de nuevo.');
+        }
+        return;
+      }
+
+      window.location.href = 'liberaciones.html';
+    });
+  </script>
+</body>
+</html>
