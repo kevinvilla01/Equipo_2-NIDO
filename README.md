@@ -51,12 +51,21 @@ Se despliega automáticamente con cada push a `main` mediante el workflow [Deplo
 
 ### Despliegue del cambio (una sola vez, en este orden)
 
+0. **Rotar las llaves si la service_role se expuso.** Hazlo antes de todo lo demás, porque esa llave da acceso total a la base y a Auth.
+   - Si la llave expuesta empieza con `sb_secret_`: en *Settings → API Keys*, revoca esa secret key y crea otra. La anon/publishable y las sesiones no cambian.
+   - Si es un JWT (`eyJ…`, llaves *legacy*): en *Settings → JWT Keys*, rota el JWT secret. Esto **invalida la anon key, la service_role y todas las sesiones**. Después:
+     - Actualiza `SUPABASE_ANON_KEY` en Vercel (*Settings → Environment Variables*, en todos los entornos donde exista), en GitHub Secrets (la usa `keep-alive.yml`) y en tu `.env.local` (`vercel env pull .env.local`).
+     - Vuelve a desplegar `main` (*Actions → Deploy → Run workflow*). `dist/config.js` se genera en el build y hasta entonces producción sigue con la llave vieja.
+     - Edge Functions: Supabase les inyecta `SUPABASE_SERVICE_ROLE_KEY` y `SUPABASE_ANON_KEY`, así que no hay nada que configurar. Si ya estaba desplegada, vuelve a desplegarla y prueba que responda.
+     - La service_role nueva solo va en tu terminal para el paso 2.
 1. SQL Editor: `20261116000000_auth_1_ligar_usuarios.sql` y `20261116000050_auth_1b_directorio_activo.sql`.
 2. En local, con la **service_role** solo en tu terminal (nunca en el repo, en `.env.local` ni en Vercel):
    ```bash
-   SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… node scripts/migrar-cuentas-auth.mjs --dry-run   # revisar
-   SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… node scripts/migrar-cuentas-auth.mjs
+   export SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=…
+   node scripts/migrar-cuentas-auth.mjs --dry-run                     # revisar
+   node scripts/migrar-cuentas-auth.mjs --password-para <id-coordinador>
    ```
+   El `--dry-run` dice, sin mostrarla, por qué una contraseña actual no sirve. Pasa `--password-para <id>` (se puede repetir) para escribir tú la contraseña de alguien con un prompt oculto. **Hazlo al menos para un coordinador activo**: sin eso nadie puede entrar a poner las demás.
 3. Edge Function:
    ```bash
    npx supabase login
