@@ -1,10 +1,12 @@
 -- Autenticación · paso 1 de 2: preparar el cambio a Supabase Auth SIN romper el login actual.
 --
 -- Orden del despliegue (detalle en el README, "Iniciar sesión"):
---   1. Esta migración.                      ← el login viejo sigue funcionando
+--   1. Esta migración y 20261116000050_auth_1b_directorio_activo.sql
+--                                           ← el login viejo sigue funcionando
 --   2. scripts/migrar-cuentas-auth.mjs      ← crea las cuentas de Auth y llena auth_id
---   3. Desplegar el frontend nuevo (signInWithPassword).
+--   3. Desplegar la Edge Function usuarios-admin y el frontend nuevo (signInWithPassword).
 --   4. 20261116000100_auth_2_cerrar_usuarios.sql ← RLS estricta y borra usuarios.password
+--   5. 20261116000200_auth_3_politicas_tablas.sql ← RLS y GRANTs del resto de tablas
 --
 -- Qué agrega:
 --   1. usuarios.auth_id → auth.users(id).
