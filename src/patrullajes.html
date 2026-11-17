@@ -17,8 +17,9 @@
   <header class="barra">
     <h1 class="barra__titulo">Patrullajes</h1>
     <div class="barra__acciones">
-      <a class="btn btn--fantasma btn--pequeno" href="/catalogos.html">Catálogos</a>
-      <a class="btn btn--fantasma btn--pequeno" href="/voluntarios.html">Voluntarios</a>
+      <a class="btn btn--fantasma btn--pequeno oculto" href="/catalogos.html" data-solo-coordinador>Catálogos</a>
+      <a class="btn btn--fantasma btn--pequeno oculto" href="/voluntarios.html" data-solo-coordinador>Voluntarios</a>
+      <button class="btn btn--fantasma btn--pequeno" type="button" data-cerrar-sesion>Salir</button>
       <span class="estado-sync" id="estado-sync">
         <span aria-hidden="true" id="estado-sync-icono">✓</span>
         <span id="estado-sync-texto">En línea</span>

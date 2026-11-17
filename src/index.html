@@ -12,7 +12,7 @@
   <script src="/vendor/supabase.js"></script>
   <script type="module" src="/js/app.js"></script>
 </head>
-<body class="tema-oscuro pantalla-login">
+<body class="tema-oscuro pantalla-login" data-acceso="publico">
 
   <main class="login">
     <div class="login__marca">
@@ -45,7 +45,7 @@
   </main>
 
   <script type="module">
-    import { supabase } from '/js/supabase.js';
+    import { asegurarSesion, ErrorSesion, iniciarSesion, leerPerfil, rutaDeRegreso } from '/js/sesion.js';
 
     const avisoOffline = document.getElementById('aviso-offline');
 
@@ -73,8 +73,11 @@
       errorLogin.classList.add('oculto');
     }
 
-    function pantallaSegunRol(rol) {
-      return rol === 'voluntario' ? '/patrullajes.html' : '/patrullajes.html';
+    // Ya hay sesión en este teléfono: directo a la app. Sin señal también, para no
+    // dejar a nadie fuera en campo; el JWT se refresca al volver la señal.
+    if (leerPerfil()) {
+      const estado = await asegurarSesion();
+      if (estado !== 'rechazada') window.location.replace(rutaDeRegreso());
     }
 
     form.addEventListener('submit', async (evento) => {
@@ -83,33 +86,25 @@
 
       const correo = document.getElementById('usuario').value.trim();
       const contrasena = document.getElementById('contrasena').value;
+      if (!correo || !contrasena) {
+        mostrarError('Escribe tu correo y tu contraseña.');
+        return;
+      }
 
       btnEntrar.disabled = true;
       btnEntrar.textContent = 'Entrando…';
 
-      const { data, error } = await supabase
-        .from('usuarios')
-        .select('id, nombre, correo, rol')
-        .eq('correo', correo)
-        .eq('password', contrasena)
-        .maybeSingle();
-
-      btnEntrar.disabled = false;
-      btnEntrar.textContent = 'Entrar';
-
-      if (error) {
-        mostrarError('No se pudo conectar. Revisa tu conexión e intenta de nuevo.');
-        return;
+      try {
+        await iniciarSesion(correo, contrasena);
+        window.location.replace(rutaDeRegreso());
+      } catch (error) {
+        console.error('No se pudo iniciar sesión:', error);
+        mostrarError(error instanceof ErrorSesion
+          ? error.message
+          : 'No se pudo iniciar sesión. Intenta de nuevo.');
+        btnEntrar.disabled = false;
+        btnEntrar.textContent = 'Entrar';
       }
-
-      if (!data) {
-        mostrarError('Correo o contraseña incorrectos.');
-        return;
-      }
-
-      localStorage.setItem('nido_usuario', JSON.stringify(data));
-
-      window.location.href = pantallaSegunRol(data.rol);
     });
   </script>
 </body>
