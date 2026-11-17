@@ -24,6 +24,66 @@ Proyecto NIDO - Campamentos Tortugueros para 10.- CUatrimestre de la Ing. Entorn
 
 Se despliega automáticamente con cada push a `main` mediante el workflow [Deploy](.github/workflows/deploy.yml) (Vercel CLI). Vercel no despliega por su cuenta: `vercel.json` desactiva los despliegues automáticos desde Git.
 
+## Iniciar sesión (Supabase Auth)
+
+> **Qué cambió (nov 2026):** el login ya no lee la tabla `usuarios` ni compara contraseñas en texto plano. Ahora usa **Supabase Auth** y la columna `usuarios.password` se eliminó.
+
+**Para usar la app:** se entra con el **mismo correo y la misma contraseña** de antes; las cuentas se migraron tal cual. Si a alguien no le funciona, el coordinador le pone una contraseña nueva en *Voluntarios → editar* (mínimo 8 caracteres).
+
+**Para programar (Luis, Diego):**
+
+- Toda la app llega a Supabase como el rol `authenticated`, con el JWT del usuario. `anon` ya no puede leer ni escribir nada, salvo `SELECT` en `keepalive`.
+- Usa siempre el cliente único `import { supabase } from '/js/supabase.js'`. Lleva el JWT solo. **No** hagas `fetch` a `/rest/v1` con la anon key como `Bearer`, porque entra como `anon` y RLS lo rechaza.
+- Toda pantalla nueva debe cargar `/config.js`, `/vendor/supabase.js` y `/js/app.js`. `app.js` revisa la sesión y, si no hay, manda al login. El acceso se declara en el `<body>`:
+
+  | `data-acceso` | Quién entra |
+  |---|---|
+  | (sin atributo) | Cualquier usuario con sesión. |
+  | `"coordinador"` | Solo coordinadores (Catálogos, Voluntarios, altas). |
+  | `"publico"` | Sin sesión (solo `index.html`). |
+
+  Es comodidad de la UI. **Quién puede leer o escribir qué lo decide RLS en el servidor** (ver [Permisos](#permisos)).
+- Perfil del usuario: `leerPerfil()` de `/js/sesion.js` devuelve `{ id, nombre, correo, rol }`. Sigue guardado en `localStorage['nido_usuario']`, así que el código existente no cambia. El servidor **no confía** en ese dato: identifica al usuario con `auth.uid()`.
+- Antes de enviar algo al servidor al volver la señal (colas offline, RPC), usa `conSesionVigente(() => …)` de `/js/sesion.js`. Refresca el JWT si está por vencer. Si Auth rechaza la sesión, manda al login **sin borrar lo pendiente** de IndexedDB. Si solo falta red, lanza `ErrorSesion` con código `'red'` y lo pendiente se queda para el siguiente intento. Al recuperar la sesión, `app.js` emite el evento `nido:sesion-vigente` en `window`.
+- Nombres de otros usuarios (compañeros de patrulla): lee la vista `directorio_usuarios` (`id`, `nombre`, `activo`). Un voluntario solo puede leer **su propia** fila de `usuarios`; el coordinador las lee todas.
+- Altas, cambios y bajas de usuarios: **solo** con la Edge Function `usuarios-admin`, mediante `administrarUsuario(accion, datos)` de `/js/usuarios-admin.js`. Nadie escribe `usuarios` desde el cliente y nadie puede cambiar su propio rol.
+- Para ocultar un elemento a los voluntarios, ponle `data-solo-coordinador class="oculto"`. Un botón con `data-cerrar-sesion` cierra la sesión.
+
+### Despliegue del cambio (una sola vez, en este orden)
+
+1. SQL Editor: `20261116000000_auth_1_ligar_usuarios.sql` y `20261116000050_auth_1b_directorio_activo.sql`.
+2. En local, con la **service_role** solo en tu terminal (nunca en el repo, en `.env.local` ni en Vercel):
+   ```bash
+   SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… node scripts/migrar-cuentas-auth.mjs --dry-run   # revisar
+   SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… node scripts/migrar-cuentas-auth.mjs
+   ```
+3. Edge Function:
+   ```bash
+   npx supabase login
+   npx supabase secrets set ORIGENES_PERMITIDOS="https://nido.klkdigitalvallarta.com,http://localhost:<puerto>" --project-ref <ref>
+   npx supabase functions deploy usuarios-admin --project-ref <ref>
+   ```
+4. Desplegar el frontend (merge a `main`).
+5. SQL Editor: `20261116000100_auth_2_cerrar_usuarios.sql`. Se aborta si algún usuario activo quedó sin cuenta.
+6. SQL Editor: `20261116000200_auth_3_politicas_tablas.sql`.
+
+## Permisos
+
+Lo que cada rol puede hacer en el servidor (RLS + GRANTs, migración `auth_3`). `anon` no tiene acceso a nada, salvo `SELECT` en `keepalive`. A nadie se le permite `TRUNCATE`, `TRIGGER` ni `REFERENCES`.
+
+| Tabla | Leer | Escribir |
+|---|---|---|
+| `usuarios` | La propia fila; el coordinador, todas | Nadie desde el cliente (Edge Function `usuarios-admin`) |
+| `directorio_usuarios` (vista) | Todos (`id`, `nombre`, `activo`) | — |
+| `especies`, `tramos` | Todos | Solo el coordinador |
+| `nidos` | Todos | Nadie directo; solo RPC (`reubicar_nido`) |
+| `liberaciones` | Todos | Insertar, solo a nombre propio (`responsable_id`) |
+| `patrullajes` | Todos | Insertar (el servidor llena `creado_por`); editar y borrar: quien lo creó, un voluntario asignado o el coordinador |
+| `patrullaje_voluntario` | Todos | Asignar y quitar: quien puede editar ese patrullaje |
+| `keepalive` | Todos, incluido `anon` | — |
+
+Funciones para políticas y RPC: `public.es_coordinador()` y `public.usuario_actual_id()`. Una tabla o función nueva **no** recibe permisos de `anon` por defecto (default privileges); dale los GRANTs explícitos que necesite.
+
 ## Variables de entorno
 
 | Variable | Dónde vive | Uso |
@@ -33,6 +93,8 @@ Se despliega automáticamente con cada push a `main` mediante el workflow [Deplo
 | `VERCEL_TOKEN` | GitHub Secrets | Token para que el workflow despliegue con el CLI de Vercel. |
 | `VERCEL_ORG_ID` | GitHub Secrets | ID del equipo/cuenta en Vercel. |
 | `VERCEL_PROJECT_ID` | GitHub Secrets | ID del proyecto en Vercel. |
+| `ORIGENES_PERMITIDOS` | Secretos de la Edge Function (`supabase secrets set`) | Orígenes que pueden llamar a `usuarios-admin` desde el navegador (CORS), separados por comas y con esquema y puerto exactos. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Solo tu terminal, para `scripts/migrar-cuentas-auth.mjs` | En la Edge Function la inyecta Supabase; no se configura. |
 
 - Ningún valor se guarda en el repositorio. `.env.example` solo lista los nombres; para probar en local, crea un `.env.local` (ignorado por git) o exporta las variables antes de `npm run build`.
 - La **secret / `service_role` key** de Supabase **nunca** va en el frontend ni en el repositorio: salta las políticas RLS y da acceso total a la base de datos.
@@ -52,6 +114,12 @@ Los cambios al esquema de Supabase viven en `supabase/migrations/` y se corren *
 | Migración | HU | Qué hace |
 |---|---|---|
 | `20261110000000_hu10_reubicar_nido.sql` | HU-10 | `fecha_reubicacion`, `UNIQUE (clave)`, CHECKs de estado, trigger de la máquina de estados y RPC `reubicar_nido`. |
+| `20261116000000_auth_1_ligar_usuarios.sql` | Auth | `usuarios.auth_id`, `es_coordinador()`, `usuario_actual_id()`, vista `directorio_usuarios`. |
+| `20261116000050_auth_1b_directorio_activo.sql` | Auth | `directorio_usuarios` con inactivos y columna `activo`. |
+| `20261116000100_auth_2_cerrar_usuarios.sql` | Auth | RLS de `usuarios`, trigger `usuarios_proteger`, borra `usuarios.password`. |
+| `20261116000200_auth_3_politicas_tablas.sql` | Auth | Políticas y GRANTs del resto de tablas, `patrullajes.creado_por`, default privileges. |
+
+Las de Auth se corren en un orden fijo, intercaladas con el script de cuentas y el despliegue: ver [Despliegue del cambio](#despliegue-del-cambio-una-sola-vez-en-este-orden).
 
 ## Máquina de estados del nido
 
@@ -68,7 +136,7 @@ registrado ──► en_corral ──► eclosionado
 
 ### RPC `reubicar_nido` (contrato para HU-16)
 
-La app no tiene permiso de `UPDATE` sobre `nidos` (RLS solo da `SELECT` a `anon`); la reubicación se envía **solo** por esta función.
+La app no tiene permiso de `UPDATE` sobre `nidos` (RLS solo da `SELECT` a `authenticated`); la reubicación se envía **solo** por esta función, con la sesión del usuario (`conSesionVigente`).
 
 ```js
 const { data, error } = await supabase.rpc('reubicar_nido', {
