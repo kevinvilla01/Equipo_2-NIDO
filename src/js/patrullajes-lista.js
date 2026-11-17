@@ -89,7 +89,7 @@ async function cargarPatrullajes() {
       id, fecha, hora_inicio, hora_fin, marea, fase_lunar, clima,
       observaciones, pendiente_envio, creado_en, finalizado,
       tramo_id:tramos ( nombre ),
-      patrullaje_voluntario ( usuarios ( nombre ) )
+      patrullaje_voluntario ( usuarios:directorio_usuarios ( nombre ) )
 
     `)
     .order('creado_en', { ascending: false });

@@ -40,7 +40,7 @@ async function cargarDetalle() {
         fecha, 
         hora_inicio, 
         tramo_id:tramos ( nombre ), 
-        patrullaje_voluntario ( usuarios ( nombre ) )`)
+        patrullaje_voluntario ( usuarios:directorio_usuarios ( nombre ) )`)
     .eq('id', patrullajeId)
     .single();
 

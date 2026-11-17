@@ -90,8 +90,10 @@ async function cargarVoluntarios() {
     console.log('cargarVoluntarios se ejecutó');
 
   const {data, error} = await supabase
-  .from('usuarios')
+  // Vista con solo id y nombre: un voluntario no puede leer la tabla usuarios completa.
+  .from('directorio_usuarios')
   .select('id, nombre')
+  .eq('activo', true)
   .order('nombre');
 
 
