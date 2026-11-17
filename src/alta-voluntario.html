@@ -8,6 +8,8 @@
   <link rel="icon" href="/icons/tortuga_logo.png">
   <link rel="stylesheet" href="/css/ui.css">
   <link rel="stylesheet" href="/css/app.css">
+  <script src="/config.js"></script>
+  <script src="/vendor/supabase.js"></script>
   <script type="module" src="/js/app.js"></script>
   <style>
     .pantalla-formulario .contenedor {
@@ -62,7 +64,7 @@
     }
   </style>
 </head>
-<body class="tema-oscuro app pantalla-formulario">
+<body class="tema-oscuro app pantalla-formulario" data-acceso="coordinador">
   <header class="barra">
     <a class="btn btn--fantasma barra__volver" href="voluntarios.html" aria-label="Volver">
       <span aria-hidden="true">‹</span>
@@ -103,8 +105,8 @@
             Contraseña <span class="requerido">*</span>
           </label>
           <input class="campo__control" id="contrasena" name="contrasena" type="password"
-                 autocomplete="new-password" required>
-          <span class="campo__ayuda" id="ayuda-contrasena">La usará para iniciar sesión junto con su correo</span>
+                 autocomplete="new-password" minlength="8" maxlength="72" required>
+          <span class="campo__ayuda" id="ayuda-contrasena">Mínimo 8 caracteres. La usará para iniciar sesión junto con su correo</span>
         </div>
 
         <div class="campo">
@@ -161,7 +163,8 @@
   </dialog>
 
   <script type="module">
-    import { supabase } from './scripts/supabase.js';
+    import { supabase } from '/js/supabase.js';
+    import { administrarUsuario } from '/js/usuarios-admin.js';
 
     const estadoSync = document.getElementById('estado-sync');
     const estadoSyncIcono = document.getElementById('estado-sync-icono');
@@ -219,7 +222,7 @@
 
     const idUsuario = new URLSearchParams(window.location.search).get('id');
     const editando = idUsuario !== null;
-    const idValido = editando && /^[\w-]+$/.test(idUsuario);
+    const idValido = editando && /^\d+$/.test(idUsuario);
     let nombreCargado = '';
 
     function esUsuarioEnSesion() {
@@ -258,6 +261,11 @@
       selectRol.value = data.rol === 'voluntario' ? 'voluntario' : 'coordinador';
       inputActivo.checked = data.activo !== false;
       bloquearFormulario(false);
+      if (esUsuarioEnSesion()) {
+        // Nadie cambia su propio rol ni se desactiva (también lo rechaza el servidor).
+        selectRol.disabled = true;
+        inputActivo.disabled = true;
+      }
     }
 
     if (editando) {
@@ -292,46 +300,36 @@
         activo: inputActivo.checked
       };
       if (!editando || inputContrasena.value !== '') {
+        if (inputContrasena.value.length < 8) {
+          mostrarAviso('La contraseña debe tener al menos 8 caracteres.');
+          return;
+        }
         datos.password = inputContrasena.value;
+      }
+      if (editando && esUsuarioEnSesion()) {
+        // Los controles están bloqueados; no se mandan para no chocar con el servidor.
+        delete datos.rol;
+        delete datos.activo;
       }
 
       btnGuardar.disabled = true;
       btnGuardar.textContent = 'Guardando…';
 
-      let error = null;
-      let sinFilas = false;
-
-      if (editando) {
-        const respuesta = await supabase
-          .from('usuarios')
-          .update(datos)
-          .eq('id', idUsuario)
-          .select('id');
-        error = respuesta.error;
-        sinFilas = !error && respuesta.data.length === 0;
-      } else {
-        const respuesta = await supabase
-          .from('usuarios')
-          .insert({ ...datos, creado_en: new Date().toISOString() });
-        error = respuesta.error;
-      }
-
-      btnGuardar.disabled = false;
-      btnGuardar.textContent = 'Guardar';
-
-      if (error) {
-        console.error('Error de Supabase al guardar usuario:', error);
-        const correoRepetido = error.code === '23505' && (error.details || '').includes('correo');
-        if (correoRepetido) {
-          mostrarErrorCorreo('Ya existe un usuario con ese correo.');
+      try {
+        if (editando) {
+          await administrarUsuario('actualizar', { id: Number(idUsuario), ...datos });
         } else {
-          mostrarAviso('No se pudo guardar. Revisa tu conexión e intenta de nuevo.');
+          await administrarUsuario('crear', datos);
         }
-        return;
-      }
-
-      if (sinFilas) {
-        mostrarAviso('No se guardaron los cambios: el usuario ya no existe o la base de datos no permite editarlo (falta la política de UPDATE en usuarios).');
+      } catch (error) {
+        console.error('No se pudo guardar el usuario:', error);
+        btnGuardar.disabled = false;
+        btnGuardar.textContent = 'Guardar';
+        if (error.codigo === 'correo_duplicado') {
+          mostrarErrorCorreo(error.message);
+        } else {
+          mostrarAviso(error.message || 'No se pudo guardar. Intenta de nuevo.');
+        }
         return;
       }
 
@@ -350,26 +348,14 @@
       btnDialogoConfirmar.disabled = true;
       btnDialogoConfirmar.textContent = 'Eliminando…';
 
-      const { data, error } = await supabase
-        .from('usuarios')
-        .delete()
-        .eq('id', idUsuario)
-        .select('id');
-
-      btnDialogoConfirmar.disabled = false;
-      btnDialogoConfirmar.textContent = 'Sí, eliminar';
-      dialogo.close();
-
-      if (error) {
-        console.error('Error de Supabase al eliminar usuario:', error);
-        mostrarAviso(error.code === '23503'
-          ? 'No se puede eliminar este usuario porque tiene registros asociados. Márcalo como inactivo en su lugar.'
-          : 'No se pudo eliminar. Revisa tu conexión e intenta de nuevo.');
-        return;
-      }
-
-      if (data.length === 0) {
-        mostrarAviso('No se eliminó: el usuario ya no existe o la base de datos no permite borrarlo (falta la política de DELETE en usuarios).');
+      try {
+        await administrarUsuario('eliminar', { id: Number(idUsuario) });
+      } catch (error) {
+        console.error('No se pudo eliminar el usuario:', error);
+        btnDialogoConfirmar.disabled = false;
+        btnDialogoConfirmar.textContent = 'Sí, eliminar';
+        dialogo.close();
+        mostrarAviso(error.message || 'No se pudo eliminar. Intenta de nuevo.');
         return;
       }
 
