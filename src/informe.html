@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Informe de temporada — NIDO</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/tortuga_logo.png">
+  <link rel="stylesheet" href="/css/ui.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script src="/config.js"></script>
+  <script type="module" src="/js/app.js"></script>
+  <style>
+    .pantalla-informe .contenedor { display: flex; flex-direction: column; }
+    .pantalla-informe .barra {
+      background: transparent; color: var(--color-texto);
+      border-bottom: 1px solid var(--color-borde);
+    }
+    .estado-sync {
+      display: inline-flex; align-items: center; gap: var(--e-1);
+      font-size: var(--t-sm); font-weight: 600; color: var(--color-exito);
+      white-space: nowrap;
+    }
+    .estado-sync--sin-conexion { color: var(--color-aviso); }
+
+    .informe-filtros {
+      display: grid; grid-template-columns: 1fr 1fr; gap: var(--e-3);
+      padding: var(--e-4) 0;
+    }
+    .informe-filtros .campo { margin-bottom: 0; }
+    .informe-filtros .btn { grid-column: 1 / -1; }
+
+    .informe-seccion { padding: var(--e-4) 0; }
+    .informe-seccion__titulo { margin: 0 0 var(--e-2); font-size: var(--t-lg); font-weight: 600; }
+
+    .tabla-cruzada th, .tabla-cruzada td { white-space: nowrap; }
+    .tabla-cruzada tfoot td, .tabla-cruzada .total-col { font-weight: 700; }
+    .tabla-cruzada .celda-vacia { color: var(--color-texto-tenue); }
+
+    .verificacion {
+      border: 1px solid var(--color-borde); border-radius: var(--radio-md, 8px);
+      padding: var(--e-3); color: var(--color-texto-suave); font-size: var(--t-sm);
+      display: flex; flex-direction: column; gap: var(--e-1);
+    }
+    .verificacion__resultado { font-weight: 700; }
+    .verificacion__resultado--ok { color: var(--color-exito); }
+    .verificacion__resultado--mal { color: var(--color-error); }
+
+    .nota-formula {
+      color: var(--color-texto-tenue); font-size: var(--t-xs); margin-top: var(--e-2);
+    }
+
+    .tema-oscuro input[type="date"] { color-scheme: dark; }
+
+    .tema-oscuro .esqueleto {
+      background: linear-gradient(90deg,
+                  var(--color-borde) 25%, var(--color-borde-fuerte) 50%, var(--color-borde) 75%);
+      background-size: 200% 100%;
+    }
+  </style>
+</head>
+<body class="tema-oscuro app pantalla-informe">
+
+  <header class="barra">
+    <a class="btn btn--fantasma barra__volver" href="catalogos.html" aria-label="Volver">
+      <span aria-hidden="true">‹</span>
+    </a>
+    <h1 class="barra__titulo">Informe de temporada</h1>
+    <div class="barra__acciones">
+      <span class="estado-sync" id="estado-sync">
+        <span aria-hidden="true" id="estado-sync-icono">✓</span>
+        <span id="estado-sync-texto">Sincronizado</span>
+      </span>
+    </div>
+  </header>
+
+  <div class="contenedor">
+    <form class="informe-filtros" id="form-filtros">
+      <div class="campo">
+        <label class="campo__etiqueta" for="desde">Desde <span class="requerido">*</span></label>
+        <input class="campo__control" id="desde" type="date" required>
+      </div>
+      <div class="campo">
+        <label class="campo__etiqueta" for="hasta">Hasta <span class="requerido">*</span></label>
+        <input class="campo__control" id="hasta" type="date" required>
+      </div>
+      <button class="btn btn--bloque" type="submit" id="btn-generar">Generar informe</button>
+    </form>
+
+    <div class="aviso aviso--error oculto" id="aviso" role="alert"></div>
+
+    <section class="informe-seccion oculto" id="seccion-resultado">
+      <div class="campo">
+        <label class="campo__etiqueta" for="metrica">Mostrar</label>
+        <select class="campo__control" id="metrica">
+          <option value="protegidos">Nidos protegidos</option>
+          <option value="huevos">Huevos resguardados</option>
+          <option value="liberadas">Crías liberadas</option>
+          <option value="eclosion">Porcentaje de eclosión</option>
+          <option value="perdidos">Nidos perdidos</option>
+        </select>
+      </div>
+
+      <h2 class="informe-seccion__titulo" id="titulo-tabla">Por especie y tramo</h2>
+      <div class="tabla-scroll">
+        <table class="tabla tabla-cruzada" id="tabla-cruzada"></table>
+      </div>
+      <p class="nota-formula">
+        Porcentaje de eclosión = crías vivas ÷ huevos resguardados × 100.
+        Huevos resguardados = huevos contados de los nidos que no están perdidos.
+        Si no hay huevos resguardados, la celda muestra «—».
+      </p>
+    </section>
+
+    <section class="informe-seccion oculto" id="seccion-causas">
+      <h2 class="informe-seccion__titulo">Nidos perdidos por causa</h2>
+      <div class="tabla-scroll">
+        <table class="tabla" id="tabla-causas"></table>
+      </div>
+    </section>
+
+    <section class="informe-seccion oculto" id="seccion-verificacion">
+      <h2 class="informe-seccion__titulo">Verificación de cuadre</h2>
+      <div class="verificacion" id="verificacion"></div>
+    </section>
+
+    <div class="estado-vacio oculto" id="estado-vacio">
+      <div class="estado-vacio__icono" aria-hidden="true"><img src="src/icons/tortuga.png" alt="" width="48" height="48"></div>
+      <p class="estado-vacio__titulo">No hay nidos capturados en este rango</p>
+      <p class="estado-vacio__texto">Prueba con otras fechas.</p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { supabase } from './scripts/supabase.js';
+
+    const estadoSync = document.getElementById('estado-sync');
+    const estadoSyncIcono = document.getElementById('estado-sync-icono');
+    const estadoSyncTexto = document.getElementById('estado-sync-texto');
+
+    function actualizarEstadoSincronizacion() {
+      const hayConexion = navigator.onLine;
+      estadoSync.classList.toggle('estado-sync--sin-conexion', !hayConexion);
+      estadoSyncTexto.textContent = hayConexion ? 'Sincronizado' : 'Sin conexión';
+    }
+
+    window.addEventListener('online', actualizarEstadoSincronizacion);
+    window.addEventListener('offline', actualizarEstadoSincronizacion);
+    actualizarEstadoSincronizacion();
+
+    const ESTADO_PERDIDO = 'perdido';
+    const SIN_CAUSA = 'Sin causa registrada';
+
+    const form = document.getElementById('form-filtros');
+    const inputDesde = document.getElementById('desde');
+    const inputHasta = document.getElementById('hasta');
+    const btnGenerar = document.getElementById('btn-generar');
+    const aviso = document.getElementById('aviso');
+    const seccionResultado = document.getElementById('seccion-resultado');
+    const seccionCausas = document.getElementById('seccion-causas');
+    const seccionVerificacion = document.getElementById('seccion-verificacion');
+    const estadoVacio = document.getElementById('estado-vacio');
+    const selectMetrica = document.getElementById('metrica');
+    const tablaCruzada = document.getElementById('tabla-cruzada');
+    const tablaCausas = document.getElementById('tabla-causas');
+    const verificacion = document.getElementById('verificacion');
+
+    const formatoEntero = new Intl.NumberFormat('es-MX');
+    const formatoPorcentaje = new Intl.NumberFormat('es-MX', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+    function escaparHTML(valor) {
+      const div = document.createElement('div');
+      div.textContent = valor;
+      return div.innerHTML;
+    }
+
+    function mostrarAviso(mensaje) {
+      aviso.textContent = mensaje;
+      aviso.classList.remove('oculto');
+    }
+
+    function limpiarAviso() {
+      aviso.classList.add('oculto');
+    }
+
+    function hoyLocal() {
+      const ahora = new Date();
+      const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+      const dia = String(ahora.getDate()).padStart(2, '0');
+      return `${ahora.getFullYear()}-${mes}-${dia}`;
+    }
+
+    inputDesde.value = `${new Date().getFullYear()}-01-01`;
+    inputHasta.value = hoyLocal();
+
+    function nuevoAcumulado() {
+      return { protegidos: 0, perdidos: 0, huevos: 0, vivas: 0, liberadas: 0 };
+    }
+
+    function sumarAcumulados(lista) {
+      const total = nuevoAcumulado();
+      lista.forEach((a) => {
+        total.protegidos += a.protegidos;
+        total.perdidos += a.perdidos;
+        total.huevos += a.huevos;
+        total.vivas += a.vivas;
+        total.liberadas += a.liberadas;
+      });
+      return total;
+    }
+
+    function valorMetrica(a, metrica) {
+      switch (metrica) {
+        case 'protegidos': return a.protegidos;
+        case 'perdidos': return a.perdidos;
+        case 'huevos': return a.huevos;
+        case 'liberadas': return a.liberadas;
+        case 'eclosion': return a.huevos > 0 ? (a.vivas / a.huevos) * 100 : null;
+        default: return null;
+      }
+    }
+
+    function formatearValor(valor, metrica) {
+      if (valor === null) return '—';
+      if (metrica === 'eclosion') return `${formatoPorcentaje.format(valor)} %`;
+      return formatoEntero.format(valor);
+    }
+
+    let resultado = null;
+
+    form.addEventListener('submit', async (evento) => {
+      evento.preventDefault();
+      limpiarAviso();
+
+      const desde = inputDesde.value;
+      const hasta = inputHasta.value;
+      if (!desde || !hasta) {
+        mostrarAviso('Elige la fecha de inicio y la de fin.');
+        return;
+      }
+      if (desde > hasta) {
+        mostrarAviso('La fecha de inicio no puede ser posterior a la fecha de fin.');
+        return;
+      }
+
+      btnGenerar.disabled = true;
+      btnGenerar.textContent = 'Generando…';
+
+      const [nidosRes, liberRes, especiesRes, tramosRes] = await Promise.all([
+        supabase
+          .from('nidos')
+          .select('id, especie_id, tramo_id, huevos_contados, crias_vivas, estado, causa_perdida')
+          .gte('fecha_hallazgo', desde)
+          .lte('fecha_hallazgo', hasta),
+        supabase
+          .from('liberaciones')
+          .select('nido_id, cantidad_liberada')
+          .gte('fecha', desde)
+          .lte('fecha', hasta),
+        supabase.from('especies').select('id, nombre_comun').order('nombre_comun'),
+        supabase.from('tramos').select('id, nombre').order('nombre')
+      ]);
+
+      btnGenerar.disabled = false;
+      btnGenerar.textContent = 'Generar informe';
+
+      const errorBase = nidosRes.error || liberRes.error || especiesRes.error || tramosRes.error;
+      if (errorBase) {
+        console.error('Error de Supabase al generar el informe:', errorBase);
+        mostrarAviso('No se pudo generar el informe. Revisa tu conexión e intenta de nuevo.');
+        return;
+      }
+
+      const nidosEnRango = nidosRes.data;
+      const liberaciones = liberRes.data;
+
+      const idsEnRango = new Set(nidosEnRango.map((n) => n.id));
+      const nidoPorId = new Map(nidosEnRango.map((n) => [n.id, n]));
+      const faltantes = [...new Set(liberaciones
+        .map((l) => l.nido_id)
+        .filter((id) => !idsEnRango.has(id)))];
+
+      if (faltantes.length > 0) {
+        const { data: extra, error: errorExtra } = await supabase
+          .from('nidos')
+          .select('id, especie_id, tramo_id, huevos_contados, crias_vivas, estado, causa_perdida')
+          .in('id', faltantes);
+        if (errorExtra) {
+          console.error('Error de Supabase al leer nidos de liberaciones:', errorExtra);
+          mostrarAviso('No se pudo generar el informe. Revisa tu conexión e intenta de nuevo.');
+          return;
+        }
+        extra.forEach((n) => nidoPorId.set(n.id, n));
+      }
+
+      resultado = calcular(nidosEnRango, liberaciones, nidoPorId, especiesRes.data, tramosRes.data);
+      mostrarResultado();
+    });
+
+    function calcular(nidosEnRango, liberaciones, nidoPorId, especies, tramos) {
+      const celdas = new Map();
+      const causas = new Map();
+      let sinEspecieOTramo = 0;
+      let liberadasSinAsignar = 0;
+
+      const celda = (especieId, tramoId) => {
+        const clave = `${especieId}|${tramoId}`;
+        if (!celdas.has(clave)) {
+          celdas.set(clave, { ...nuevoAcumulado(), especieId, tramoId });
+        }
+        return celdas.get(clave);
+      };
+
+      nidosEnRango.forEach((nido) => {
+        if (nido.especie_id == null || nido.tramo_id == null) {
+          sinEspecieOTramo++;
+          return;
+        }
+        const a = celda(nido.especie_id, nido.tramo_id);
+        a.protegidos++;
+
+        if (nido.estado === ESTADO_PERDIDO) {
+          a.perdidos++;
+          const causa = nido.causa_perdida?.trim() || SIN_CAUSA;
+          causas.set(causa, (causas.get(causa) || 0) + 1);
+        } else {
+          a.huevos += nido.huevos_contados ?? 0;
+          a.vivas += nido.crias_vivas ?? 0;
+        }
+      });
+
+      liberaciones.forEach((lib) => {
+        const nido = nidoPorId.get(lib.nido_id);
+        const cantidad = lib.cantidad_liberada ?? 0;
+        if (!nido || nido.especie_id == null || nido.tramo_id == null) {
+          liberadasSinAsignar += cantidad;
+          return;
+        }
+        celda(nido.especie_id, nido.tramo_id).liberadas += cantidad;
+      });
+
+      const nombreEspecie = new Map(especies.map((e) => [e.id, e.nombre_comun]));
+      const nombreTramo = new Map(tramos.map((t) => [t.id, t.nombre]));
+
+      const especiesUsadas = especies.filter((e) =>
+        [...celdas.values()].some((c) => c.especieId === e.id));
+      const tramosUsados = tramos.filter((t) =>
+        [...celdas.values()].some((c) => c.tramoId === t.id));
+
+      return {
+        celdas, causas, sinEspecieOTramo, liberadasSinAsignar,
+        totalNidos: nidosEnRango.length,
+        especiesUsadas, tramosUsados, nombreEspecie, nombreTramo
+      };
+    }
+
+    function mostrarResultado() {
+      const r = resultado;
+
+      if (r.totalNidos === 0) {
+        seccionResultado.classList.add('oculto');
+        seccionCausas.classList.add('oculto');
+        seccionVerificacion.classList.add('oculto');
+        estadoVacio.classList.remove('oculto');
+        return;
+      }
+
+      estadoVacio.classList.add('oculto');
+      seccionResultado.classList.remove('oculto');
+      seccionCausas.classList.remove('oculto');
+      seccionVerificacion.classList.remove('oculto');
+
+      renderizarTablaCruzada();
+      renderizarCausas();
+      renderizarVerificacion();
+    }
+
+    function renderizarTablaCruzada() {
+      const r = resultado;
+      const metrica = selectMetrica.value;
+      const todas = [...r.celdas.values()];
+
+      const encabezado = r.tramosUsados.map((t) =>
+        `<th class="num">${escaparHTML(t.nombre)}</th>`).join('');
+
+      const filas = r.especiesUsadas.map((especie) => {
+        const celdasFila = r.tramosUsados.map((tramo) => {
+          const a = r.celdas.get(`${especie.id}|${tramo.id}`) ?? nuevoAcumulado();
+          const texto = formatearValor(valorMetrica(a, metrica), metrica);
+          return `<td class="num ${texto === '—' ? 'celda-vacia' : ''}">${texto}</td>`;
+        }).join('');
+
+        const totalFila = sumarAcumulados(todas.filter((c) => c.especieId === especie.id));
+        return `
+          <tr>
+            <th scope="row">${escaparHTML(especie.nombre_comun)}</th>
+            ${celdasFila}
+            <td class="num total-col">${formatearValor(valorMetrica(totalFila, metrica), metrica)}</td>
+          </tr>`;
+      }).join('');
+
+      const totalPorTramo = r.tramosUsados.map((tramo) => {
+        const a = sumarAcumulados(todas.filter((c) => c.tramoId === tramo.id));
+        return `<td class="num">${formatearValor(valorMetrica(a, metrica), metrica)}</td>`;
+      }).join('');
+
+      const total = sumarAcumulados(todas);
+      const pie = `
+        <tr>
+          <th scope="row">Total</th>
+          ${totalPorTramo}
+          <td class="num">${formatearValor(valorMetrica(total, metrica), metrica)}</td>
+        </tr>`;
+
+      tablaCruzada.innerHTML = `
+        <thead>
+          <tr>
+            <th scope="col">Especie \\ Tramo</th>
+            ${encabezado}
+            <th scope="col" class="num">Total</th>
+          </tr>
+        </thead>
+        <tbody>${filas}</tbody>
+        <tfoot>${pie}</tfoot>`;
+
+      const titulos = {
+        protegidos: 'Nidos protegidos', huevos: 'Huevos resguardados',
+        liberadas: 'Crías liberadas', eclosion: 'Porcentaje de eclosión',
+        perdidos: 'Nidos perdidos'
+      };
+      document.getElementById('titulo-tabla').textContent = `${titulos[metrica]} por especie y tramo`;
+    }
+
+    function renderizarCausas() {
+      const r = resultado;
+      const filas = [...r.causas.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([causa, n]) => `
+          <tr><td>${escaparHTML(causa)}</td><td class="num">${formatoEntero.format(n)}</td></tr>`)
+        .join('');
+
+      const totalPerdidos = [...r.causas.values()].reduce((s, n) => s + n, 0);
+
+      tablaCausas.innerHTML = `
+        <thead><tr><th scope="col">Causa</th><th scope="col" class="num">Nidos</th></tr></thead>
+        <tbody>${filas || '<tr><td colspan="2">Ningún nido perdido en este rango.</td></tr>'}</tbody>
+        <tfoot><tr><th scope="row">Total</th><td class="num">${formatoEntero.format(totalPerdidos)}</td></tr></tfoot>`;
+    }
+
+    function renderizarVerificacion() {
+      const r = resultado;
+      const todas = [...r.celdas.values()];
+      const totalTabla = todas.reduce((s, c) => s + c.protegidos, 0);
+      const perdidosTabla = todas.reduce((s, c) => s + c.perdidos, 0);
+      const perdidosCausas = [...r.causas.values()].reduce((s, n) => s + n, 0);
+
+      const nidosCuadran = totalTabla + r.sinEspecieOTramo === r.totalNidos;
+      const perdidosCuadran = perdidosTabla === perdidosCausas;
+      const cuadra = nidosCuadran && perdidosCuadran;
+
+      const liberadasTabla = todas.reduce((s, c) => s + c.liberadas, 0);
+      const liberadasTotal = liberadasTabla + r.liberadasSinAsignar;
+
+      verificacion.innerHTML = `
+        <span>Nidos capturados en el rango: <strong>${formatoEntero.format(r.totalNidos)}</strong></span>
+        <span>Nidos en la tabla: <strong>${formatoEntero.format(totalTabla)}</strong></span>
+        <span>Nidos sin especie o tramo: <strong>${formatoEntero.format(r.sinEspecieOTramo)}</strong></span>
+        <span>Crías liberadas en el rango: <strong>${formatoEntero.format(liberadasTotal)}</strong></span>
+        <span class="verificacion__resultado ${cuadra ? 'verificacion__resultado--ok' : 'verificacion__resultado--mal'}">
+          ${cuadra ? '✓ El informe cuadra con los nidos capturados.' : '⚠ El informe no cuadra. Revisa los nidos sin especie o tramo.'}
+        </span>`;
+
+      if (r.sinEspecieOTramo > 0 || r.liberadasSinAsignar > 0) {
+        mostrarAviso(`Hay ${r.sinEspecieOTramo} nido(s) sin especie o tramo, y ${formatoEntero.format(r.liberadasSinAsignar)} cría(s) liberada(s) de nidos sin especie o tramo. Corrígelos para que el informe cuadre.`);
+      }
+    }
+
+    selectMetrica.addEventListener('change', () => {
+      if (resultado) renderizarTablaCruzada();
+    });
+  </script>
+</body>
+</html>
