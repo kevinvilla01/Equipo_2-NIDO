@@ -1,19 +1,4 @@
-import { supabase } from '/js/supabase.js';
-
-const avisoFormulario = document.getElementById('aviso-formulario');
-
-function mostrarAviso(mensaje) {
-  avisoFormulario.textContent = mensaje;
-  avisoFormulario.classList.remove('oculto');
-  avisoFormulario.scrollIntoView({ block: 'center' });
-}
-
-// Mensaje cuando una consulta falla: con o sin señal, dice qué hacer en vez de dejar la lista vacía.
-function mensajeSinDatos(que) {
-  return navigator.onLine
-    ? `No se pudieron cargar ${que}. Intenta de nuevo en un momento.`
-    : `No se pudieron cargar ${que} porque no hay señal. Vuelve a abrir esta pantalla con conexión.`;
-}
+import { supabase } from './supabase.js';
 
 async function registrarPatrullaje() {
 
@@ -22,21 +7,27 @@ async function registrarPatrullaje() {
   const Fecha = document.getElementById('fecha').value;
   const voluntariosIds = obtenerVoluntariosSeleccionados();
 
-  avisoFormulario.classList.add('oculto');
+
 
   if (!Fecha || !horaInicio || !tramoId) {
-    mostrarAviso('Completa la fecha, la hora de inicio y el tramo.');
+    alert('Completa la fecha, la hora de inicio y el tramo');
     return;
   }
+
+  const inicio = new Date(`${Fecha}T${horaInicio}:00`);
+  const ahora = new Date();
+  ahora.setSeconds(0, 0);
+
+  if (inicio < ahora) {
+    alert('La fecha y hora de inicio no pueden ser anteriores al momento actual.');
+    return;
+  }
+
 
   if (voluntariosIds.length === 0) {
-    mostrarAviso('Selecciona al menos un voluntario.');
+    alert('Selecciona al menos un voluntario');
     return;
   }
-
-  const btnGuardar = document.getElementById('btn-guardar');
-  btnGuardar.disabled = true;
-  btnGuardar.textContent = 'Guardando…';
 
   const { data, error } = await supabase
     .from('patrullajes')
@@ -50,11 +41,7 @@ async function registrarPatrullaje() {
 
   if (error) {
     console.error(error);
-    btnGuardar.disabled = false;
-    btnGuardar.textContent = 'Guardar patrullaje';
-    mostrarAviso(navigator.onLine
-      ? 'No se pudo guardar el patrullaje. Intenta de nuevo.'
-      : 'No se pudo guardar el patrullaje porque no hay señal. Intenta de nuevo con conexión.');
+    alert ('No se pudo insertar el patrullaje');
     return;
   }
 
@@ -74,13 +61,12 @@ console.log('filas a insertar:', filas);
 
   if (errorVoluntarios) {
     console.error(errorVoluntarios);
-    // El patrullaje ya existe: el botón queda deshabilitado para no duplicarlo.
-    btnGuardar.textContent = 'Patrullaje guardado';
-    mostrarAviso('El patrullaje se guardó, pero no se pudieron asociar los voluntarios: ' + errorVoluntarios.message);
+    alert('El patrullaje se guardó, pero no se pudieron asociar los voluntarios: ' + errorVoluntarios.message);
     return;
   }
-
-    window.location.href = '/patrullajes.html?aviso=registrado';
+ 
+    alert ('Patrullaje guardado coan éxito');
+    window.location.href = 'patrullajes.html';
 
 }
 
@@ -95,27 +81,18 @@ async function cargarVoluntarios() {
   .order('nombre');
 
 
-  const contenedor = document.getElementById('voluntarios-list');
-
 if (error){
   console.error(error);
-  contenedor.innerHTML = `<p class="campo__error">${mensajeSinDatos('los voluntarios')}</p>`;
   return;
 }
 
-  if (data.length === 0) {
-    contenedor.innerHTML = '<p class="tenue pequeno mb-0">No hay voluntarios registrados.</p>';
-    return;
-  }
-
+  const contenedor = document.getElementById('voluntarios-list');
   contenedor.innerHTML = data.map(u => `
-    <label class="opcion">
+    <label class="checkbox-item">
       <input type="checkbox" value="${u.id}" name="voluntario">
-      <span></span>
+      ${u.nombre}
     </label>
   `).join('');
-  // El nombre se pone como texto para no interpretar HTML que venga de la base de datos.
-  contenedor.querySelectorAll('.opcion span').forEach((span, i) => { span.textContent = data[i].nombre; });
 }
 
 cargarVoluntarios();
@@ -136,23 +113,31 @@ async function cargarTramos() {
     .select('id, nombre')
     .order('nombre');
 
-  const selectEl = document.getElementById('tramo');
-
   if (error) {
     console.error(error);
-    selectEl.innerHTML = '<option value="">Sin tramos disponibles</option>';
-    mostrarAviso(mensajeSinDatos('los tramos'));
     return;
   }
 
-  selectEl.innerHTML = '<option value="">Selecciona un tramo</option>';
-  data.forEach(t => selectEl.add(new Option(t.nombre, t.id)));
+  const selectEl = document.getElementById('tramo');
+  selectEl.innerHTML =
+    '<option value="">Selecciona un tramo</option>' +
+    data.map(t => `<option value="${t.id}">${t.nombre}</option>`).join('');
 }
 cargarTramos();
 
 const hoy = new Date();
-document.getElementById('fecha').value =
-  `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+const hoyTexto = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+
+const fechaEl = document.getElementById('fecha');
+fechaEl.value = hoyTexto;
+fechaEl.min = hoyTexto;
+
+const ahorita = new Date();
+const horaEl = document.getElementById('hora-inicio');
+horaEl.value = `${String(ahorita.getHours()).padStart(2, '0')}:${String(ahorita.getMinutes()).padStart(2, '0')}`;
+
+
+
 
 
 document.getElementById('btn-guardar').addEventListener('click', registrarPatrullaje);
