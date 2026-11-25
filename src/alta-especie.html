@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nueva especie — NIDO</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/tortuga_logo.png">
+  <link rel="stylesheet" href="/css/ui.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script src="/config.js"></script>
+  <script src="/vendor/supabase.js"></script>
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body class="tema-oscuro app pantalla-formulario">
+
+  <header class="barra">
+    <a class="btn btn--fantasma barra__volver" href="/catalogos.html#especies" aria-label="Volver">
+      <span aria-hidden="true">‹</span>
+    </a>
+    <h1 class="barra__titulo" id="titulo-pantalla">Nueva especie</h1>
+    <div class="barra__acciones">
+      <span class="estado-sync" id="estado-sync">
+        <span aria-hidden="true" id="estado-sync-icono">✓</span>
+        <span id="estado-sync-texto">Sincronizado</span>
+      </span>
+    </div>
+  </header>
+
+  <div class="franja-offline" role="status">Sin conexión. Los datos se cargan al volver la señal.</div>
+
+  <div class="contenedor">
+    <main class="contenido-formulario">
+      <form id="form-especie">
+        <div class="aviso aviso--error oculto" id="aviso-formulario" role="alert"></div>
+
+        <div class="campo">
+          <label class="campo__etiqueta" for="nombre-comun">
+            Nombre común <span class="requerido">*</span>
+          </label>
+          <input class="campo__control" id="nombre-comun" name="nombre_comun" type="text" required>
+          <span class="campo__ayuda">Nombre más utilizado localmente</span>
+          <span class="campo__error oculto" id="error-nombre-especie"></span>
+        </div>
+
+        <div class="campo">
+          <label class="campo__etiqueta" for="nombre-cientifico">
+            Nombre científico <span class="requerido">*</span>
+          </label>
+          <input class="campo__control" id="nombre-cientifico" name="nombre_cientifico" type="text" required>
+        </div>
+
+        <div class="campo">
+          <label class="campo__etiqueta" for="dias-incubacion">
+            Días de incubación estimados <span class="requerido">*</span>
+          </label>
+          <input class="campo__control" id="dias-incubacion" name="dias_incubacion" type="number"
+                 min="0" step="1" inputmode="numeric" required>
+        </div>
+
+        <div class="pila mt-4">
+          <button class="btn btn--bloque" type="submit" id="btn-guardar">Guardar</button>
+          <button class="btn btn--peligro btn--bloque oculto" type="button" id="btn-eliminar">Eliminar especie</button>
+          <a class="btn btn--fantasma btn--bloque" href="/catalogos.html#especies">Cancelar</a>
+        </div>
+      </form>
+    </main>
+  </div>
+
+  <dialog class="dialogo" id="dialogo-eliminar">
+    <div class="dialogo__cuerpo">
+      <h3 class="dialogo__titulo" id="dialogo-titulo">¿Eliminar esta especie?</h3>
+      <p class="dialogo__texto">Esta acción no se puede deshacer.</p>
+      <div class="dialogo__pie">
+        <button class="btn btn--secundario" type="button" id="btn-dialogo-volver">Volver</button>
+        <button class="btn btn--peligro" type="button" id="btn-dialogo-confirmar">Sí, eliminar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script type="module">
+    import { supabase } from '/js/supabase.js';
+
+
+    const form = document.getElementById('form-especie');
+    const inputNombreComun = document.getElementById('nombre-comun');
+    const inputNombreCientifico = document.getElementById('nombre-cientifico');
+    const inputDias = document.getElementById('dias-incubacion');
+    const campoNombre = inputNombreComun.closest('.campo');
+    const errorNombre = document.getElementById('error-nombre-especie');
+    const avisoFormulario = document.getElementById('aviso-formulario');
+    const btnGuardar = document.getElementById('btn-guardar');
+    const btnEliminar = document.getElementById('btn-eliminar');
+    const dialogo = document.getElementById('dialogo-eliminar');
+    const btnDialogoVolver = document.getElementById('btn-dialogo-volver');
+    const btnDialogoConfirmar = document.getElementById('btn-dialogo-confirmar');
+
+    const DESTINO = '/catalogos.html#especies';
+
+    function mostrarErrorNombre(mensaje) {
+      campoNombre.classList.add('campo--error');
+      errorNombre.textContent = mensaje;
+      errorNombre.classList.remove('oculto');
+    }
+
+    function limpiarErrorNombre() {
+      campoNombre.classList.remove('campo--error');
+      errorNombre.classList.add('oculto');
+    }
+
+    function mostrarAviso(mensaje) {
+      avisoFormulario.textContent = mensaje;
+      avisoFormulario.classList.remove('oculto');
+    }
+
+    function limpiarAviso() {
+      avisoFormulario.classList.add('oculto');
+    }
+
+    function bloquearFormulario(bloqueado) {
+      form.querySelectorAll('input, button').forEach((el) => { el.disabled = bloqueado; });
+    }
+
+    const idParam = new URLSearchParams(window.location.search).get('id');
+    const editando = idParam !== null;
+    const idValido = editando && /^\d+$/.test(idParam);
+    const idEspecie = idValido ? Number(idParam) : null;
+    let nombreCargado = '';
+
+    async function cargarEspecie() {
+      bloquearFormulario(true);
+
+      const { data, error } = await supabase
+        .from('especies')
+        .select('nombre_comun, nombre_cientifico, dias_incubacion_estimados')
+        .eq('id', idEspecie)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error de Supabase al leer la especie:', error);
+        mostrarAviso('No se pudo cargar la especie. Revisa tu conexión y vuelve a abrir esta pantalla.');
+        return;
+      }
+
+      if (!data) {
+        mostrarAviso('Esta especie ya no existe. Puede que alguien la haya eliminado.');
+        return;
+      }
+
+      nombreCargado = data.nombre_comun;
+      inputNombreComun.value = data.nombre_comun ?? '';
+      inputNombreCientifico.value = data.nombre_cientifico ?? '';
+      inputDias.value = data.dias_incubacion_estimados ?? '';
+      bloquearFormulario(false);
+    }
+
+    if (editando) {
+      document.title = 'Editar especie — NIDO';
+      document.getElementById('titulo-pantalla').textContent = 'Editar especie';
+      btnEliminar.classList.remove('oculto');
+
+      if (idValido) {
+        cargarEspecie();
+      } else {
+        bloquearFormulario(true);
+        mostrarAviso('El enlace no es válido: falta indicar qué especie editar.');
+      }
+    }
+
+    form.addEventListener('submit', async (evento) => {
+      evento.preventDefault();
+      limpiarErrorNombre();
+      limpiarAviso();
+
+      const datos = {
+        nombre_comun: inputNombreComun.value.trim(),
+        nombre_cientifico: inputNombreCientifico.value.trim(),
+        dias_incubacion_estimados: inputDias.value
+      };
+
+      btnGuardar.disabled = true;
+      btnGuardar.textContent = 'Guardando…';
+
+      let error = null;
+      let sinFilas = false;
+
+      if (editando) {
+        const respuesta = await supabase
+          .from('especies')
+          .update(datos)
+          .eq('id', idEspecie)
+          .select('id');
+        error = respuesta.error;
+        sinFilas = !error && respuesta.data.length === 0;
+      } else {
+        const respuesta = await supabase
+          .from('especies')
+          .insert({ ...datos, creado_en: new Date().toISOString() });
+        error = respuesta.error;
+      }
+
+      btnGuardar.disabled = false;
+      btnGuardar.textContent = 'Guardar';
+
+      if (error) {
+        if (error.code === '23505') {
+          mostrarErrorNombre('Ya existe una especie con ese nombre.');
+        } else {
+          console.error('Error de Supabase al guardar especie:', error);
+          mostrarAviso('No se pudo guardar. Revisa tu conexión e intenta de nuevo.');
+        }
+        return;
+      }
+
+      if (sinFilas) {
+        mostrarAviso('No se guardaron los cambios: la especie ya no existe o la base de datos no permite editarla (falta la política de UPDATE).');
+        return;
+      }
+
+      window.location.href = DESTINO;
+    });
+
+    btnEliminar.addEventListener('click', () => {
+      document.getElementById('dialogo-titulo').textContent =
+        `¿Eliminar la especie "${nombreCargado}"?`;
+      dialogo.showModal();
+    });
+
+    btnDialogoVolver.addEventListener('click', () => dialogo.close());
+
+    btnDialogoConfirmar.addEventListener('click', async () => {
+      btnDialogoConfirmar.disabled = true;
+      btnDialogoConfirmar.textContent = 'Eliminando…';
+
+      const { data, error } = await supabase
+        .from('especies')
+        .delete()
+        .eq('id', idEspecie)
+        .select('id');
+
+      btnDialogoConfirmar.disabled = false;
+      btnDialogoConfirmar.textContent = 'Sí, eliminar';
+      dialogo.close();
+
+      if (error) {
+        console.error('Error de Supabase al eliminar especie:', error);
+        mostrarAviso(error.code === '23503'
+          ? 'No se puede eliminar esta especie porque tiene registros asociados.'
+          : 'No se pudo eliminar. Revisa tu conexión e intenta de nuevo.');
+        return;
+      }
+
+      if (data.length === 0) {
+        mostrarAviso('No se eliminó: la especie ya no existe o la base de datos no permite borrarla (falta la política de DELETE).');
+        return;
+      }
+
+      window.location.href = DESTINO;
+    });
+  </script>
+</body>
+</html>

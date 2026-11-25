@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Catálogos — NIDO</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/tortuga_logo.png">
+  <link rel="stylesheet" href="/css/ui.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script src="/config.js"></script>
+  <script src="/vendor/supabase.js"></script>
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body class="tema-oscuro app pantalla-catalogos">
+
+  <header class="barra">
+    <a class="btn btn--fantasma barra__volver" href="/patrullajes.html" aria-label="Volver">
+      <span aria-hidden="true">‹</span>
+    </a>
+    <h1 class="barra__titulo">Catálogos</h1>
+    <div class="barra__acciones">
+      <span class="estado-sync" id="estado-sync">
+        <span aria-hidden="true" id="estado-sync-icono">✓</span>
+        <span id="estado-sync-texto">Sincronizado</span>
+      </span>
+    </div>
+  </header>
+
+  <div class="franja-offline" role="status">Sin conexión. Los datos se cargan al volver la señal.</div>
+
+  <div class="contenedor">
+    <div class="pestanas" role="tablist">
+      <button class="pestana" role="tab" id="tab-tramos"
+              aria-selected="true" aria-controls="panel-tramos">Tramos</button>
+      <button class="pestana" role="tab" id="tab-especies"
+              aria-selected="false" aria-controls="panel-especies">Especies</button>
+    </div>
+
+    <div class="panel-catalogo" role="tabpanel" id="panel-tramos" aria-labelledby="tab-tramos">
+      <div class="pila" id="lista-tramos"></div>
+    </div>
+    <div class="pie-catalogo" data-pie-de="panel-tramos">
+      <a class="btn btn--bloque" href="/alta-tramo.html">Nuevo tramo</a>
+    </div>
+
+    <div class="panel-catalogo oculto" role="tabpanel" id="panel-especies" aria-labelledby="tab-especies">
+      <div class="pila" id="lista-especies"></div>
+    </div>
+    <div class="pie-catalogo oculto" data-pie-de="panel-especies">
+      <a class="btn btn--bloque" href="/alta-especie.html">Nueva especie</a>
+    </div>
+  </div>
+
+  <script type="module">
+    import { supabase } from '/js/supabase.js';
+
+    const pestanas = document.querySelectorAll('.pestana');
+
+    pestanas.forEach((pestana) => {
+      pestana.addEventListener('click', () => {
+        pestanas.forEach((otra) => otra.setAttribute('aria-selected', 'false'));
+        pestana.setAttribute('aria-selected', 'true');
+
+        const idPanelActivo = pestana.getAttribute('aria-controls');
+
+        document.querySelectorAll('.panel-catalogo').forEach((panel) => {
+          panel.classList.toggle('oculto', panel.id !== idPanelActivo);
+        });
+        document.querySelectorAll('.pie-catalogo').forEach((pie) => {
+          pie.classList.toggle('oculto', pie.dataset.pieDe !== idPanelActivo);
+        });
+      });
+    });
+
+    if (window.location.hash === '#especies') {
+      document.getElementById('tab-especies').click();
+    }
+
+    function escaparHTML(valor) {
+      const div = document.createElement('div');
+      div.textContent = valor;
+      return div.innerHTML;
+    }
+
+    function renderizarCatalogo(contenedor, items, textos) {
+      contenedor.removeAttribute('aria-busy');
+      contenedor.innerHTML = '';
+
+      if (items.length === 0) {
+        contenedor.innerHTML = `
+          <div class="estado-vacio">
+            <div class="estado-vacio__icono" aria-hidden="true">${textos.icono}</div>
+            <p class="estado-vacio__titulo">${textos.tituloVacio}</p>
+            <p class="estado-vacio__texto">${textos.textoVacio}</p>
+          </div>`;
+        return;
+      }
+
+      items.forEach((item) => {
+        const fila = document.createElement('a');
+        fila.href = item.href || '#';
+        fila.className = 'tarjeta fila entre fila-catalogo' +
+          (item.conflicto ? ' fila-catalogo--conflicto' : '');
+        fila.innerHTML = `
+          <div class="fila-catalogo__texto">
+            <span class="tarjeta__titulo">${escaparHTML(item.titulo)}</span>
+            <span class="tenue pequeno">${escaparHTML(item.detalle)}</span>
+            ${item.conflicto
+              ? `<span class="pequeno texto-conflicto">${escaparHTML(item.mensajeConflicto)}</span>`
+              : ''}
+          </div>
+          <span class="fila-catalogo__chevron" aria-hidden="true">›</span>`;
+        contenedor.appendChild(fila);
+      });
+    }
+
+    const textosTramos = {
+      icono: '🧭',
+      tituloVacio: 'Todavía no hay tramos registrados',
+      textoVacio: 'Cuando registres el primero, aparecerá aquí con su kilometraje.'
+    };
+
+    const textosEspecies = {
+      icono: '🐢',
+      tituloVacio: 'Todavía no hay especies registradas',
+      textoVacio: 'Cuando registres la primera, aparecerá aquí con sus días de incubación.'
+    };
+
+    function mostrarCargando(contenedor) {
+      contenedor.setAttribute('aria-busy', 'true');
+      contenedor.innerHTML = `
+        <div class="esqueleto esqueleto--tarjeta" aria-hidden="true"></div>
+        <div class="esqueleto esqueleto--tarjeta" aria-hidden="true"></div>`;
+    }
+
+    function mostrarError(contenedor, titulo, alReintentar) {
+      contenedor.removeAttribute('aria-busy');
+      contenedor.innerHTML = `
+        <div class="estado-error">
+          <p class="estado-error__titulo">${titulo}</p>
+          <p class="estado-error__texto">
+            No se pudieron traer los datos. Revisa tu conexión; si el problema
+            sigue, avisa al equipo.
+          </p>
+          <button class="btn btn--secundario" type="button">Reintentar</button>
+        </div>`;
+      contenedor.querySelector('button').addEventListener('click', alReintentar);
+    }
+
+    async function cargarTramos() {
+      const contenedor = document.getElementById('lista-tramos');
+      mostrarCargando(contenedor);
+
+      const { data, error } = await supabase
+        .from('tramos')
+        .select('id, nombre, kilometro_inicial, kilometro_final, referencia')
+        .order('creado_en', { ascending: false });
+
+      if (error) {
+        console.error('Error de Supabase al leer tramos:', error);
+        mostrarError(contenedor, 'No pudimos cargar los tramos', cargarTramos);
+        return;
+      }
+
+      const items = data.map((tramo) => ({
+        href: `/alta-tramo.html?id=${tramo.id}`,
+        titulo: tramo.nombre,
+        detalle: [
+          `km ${tramo.kilometro_inicial}–${tramo.kilometro_final}`,
+          tramo.referencia
+        ].filter(Boolean).join(' · ')
+      }));
+
+      renderizarCatalogo(contenedor, items, textosTramos);
+    }
+
+    async function cargarEspecies() {
+      const contenedor = document.getElementById('lista-especies');
+      mostrarCargando(contenedor);
+
+      const { data, error } = await supabase
+        .from('especies')
+        .select('id, nombre_comun, nombre_cientifico, dias_incubacion_estimados')
+        .order('creado_en', { ascending: false });
+
+      if (error) {
+        console.error('Error de Supabase al leer especies:', error);
+        mostrarError(contenedor, 'No pudimos cargar las especies', cargarEspecies);
+        return;
+      }
+
+      const items = data.map((especie) => ({
+        href: `/alta-especie.html?id=${especie.id}`,
+        titulo: especie.nombre_cientifico
+          ? `${especie.nombre_cientifico} (${especie.nombre_comun})`
+          : especie.nombre_comun,
+        detalle: especie.dias_incubacion_estimados != null
+          ? `${especie.dias_incubacion_estimados} días de incubación`
+          : 'Sin días de incubación registrados'
+      }));
+
+      renderizarCatalogo(contenedor, items, textosEspecies);
+    }
+
+    cargarTramos();
+    cargarEspecies();
+  </script>
+</body>
+</html>
