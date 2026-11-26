@@ -1,5 +1,5 @@
 // Service worker: precachea el shell de la app y lo sirve desde caché cuando no hay señal.
-const CACHE = 'nido-v9';
+const CACHE = 'nido-v10';
 // Con señal débil el fetch se queda colgado; pasado este tiempo se sirve la copia en caché.
 const TIMEOUT_RED_MS = 3000;
 const PRECACHE = [
@@ -9,6 +9,7 @@ const PRECACHE = [
   '/patrullajes.html',
   '/registrar-patrulla.html',
   '/finalizar-patrullaje.html',
+  '/nidos-activos.html',
   '/nuevo-nido.html',
   '/reubicar-nido.html',
   '/marcar-perdido.html',
@@ -42,6 +43,8 @@ const PRECACHE = [
   '/js/uuid.js',
   '/js/estados-nido.js',
   '/js/cola-perdidas.js',
+  '/js/nidos-activos.js',
+  '/js/sync-nidos.js',
 ];
 
 self.addEventListener('install', (event) => {
@@ -61,7 +64,9 @@ self.addEventListener('activate', (event) => {
 });
 
 // Red primero para recibir cada despliegue nuevo; si no hay señal o tarda más de
-// TIMEOUT_RED_MS, la copia en caché. Las peticiones a Supabase (otro origen) no pasan por aquí.
+// TIMEOUT_RED_MS, la copia en caché. Las peticiones a Supabase (otro origen) no pasan por aquí:
+// los datos (catálogos y nidos activos, HU-13) se guardan en IndexedDB, porque las respuestas
+// llevan el JWT del usuario y no deben quedar en una caché compartida por URL.
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
