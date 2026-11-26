@@ -129,17 +129,26 @@ async function pedirContrasena(etiqueta) {
   }
 }
 
-// --password-para <id>, repetible.
+// Opciones: --dry-run y --password-para <id> (repetible). Cualquier otra cosa es error:
+// un typo como --dryrun no debe correr el script de verdad.
+const USO = 'Uso: node scripts/migrar-cuentas-auth.mjs [--dry-run] [--password-para <id>]...';
 const idsConContrasena = new Set();
-process.argv.forEach((arg, i) => {
-  if (arg !== '--password-para') return;
-  const id = process.argv[i + 1];
-  if (!/^\d+$/.test(id ?? '')) {
-    console.error('Uso: --password-para <id numérico de public.usuarios>');
-    process.exit(1);
+for (let i = 2; i < process.argv.length; i += 1) {
+  const arg = process.argv[i];
+  if (arg === '--dry-run') continue;
+  if (arg === '--password-para') {
+    const id = process.argv[i + 1];
+    if (!/^\d+$/.test(id ?? '')) {
+      console.error(`--password-para necesita un id numérico de public.usuarios.\n${USO}`);
+      process.exit(1);
+    }
+    idsConContrasena.add(Number(id));
+    i += 1;
+    continue;
   }
-  idsConContrasena.add(Number(id));
-});
+  console.error(`Opción desconocida: ${arg}\n${USO}`);
+  process.exit(1);
+}
 
 const usuarios = await pedir('GET', '/rest/v1/usuarios?select=id,correo,password,activo,auth_id&order=id');
 const existentes = await cuentasExistentes();
