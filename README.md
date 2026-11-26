@@ -20,7 +20,7 @@ Proyecto NIDO - Campamentos Tortugueros para 10.- CUatrimestre de la Ing. Entorn
 
 ## App en producción
 
-**https://nido.klkdigitalvallarta.com**
+**pendiente de dominio**
 
 Se despliega automáticamente con cada push a `main` mediante el workflow [Deploy](.github/workflows/deploy.yml) (Vercel CLI). Vercel no despliega por su cuenta: `vercel.json` desactiva los despliegues automáticos desde Git.
 
