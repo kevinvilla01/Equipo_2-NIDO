@@ -176,7 +176,7 @@ async function cargarPatrullajesCompletados() {
       id, fecha, hora_inicio, hora_fin, marea, fase_lunar, clima,
       observaciones, pendiente_envio, creado_en, finalizado,
       tramo_id:tramos ( nombre ),
-      patrullaje_voluntario ( usuarios ( nombre ) )
+      patrullaje_voluntario ( usuarios:directorio_usuarios ( nombre ) )
 
     `)
     .eq('finalizado', true)
@@ -184,16 +184,11 @@ async function cargarPatrullajesCompletados() {
 
   if (error) {
     console.error(error);
-    listEl.innerHTML = `<p class="state-msg">No se pudieron cargar los patrullajes.</p>`;
+    listElCompleted.innerHTML = `<p class="state-msg">No se pudieron cargar los patrullajes.</p>`;
     return;
   }
 
-  if (!data || data.length === 0) {
-    listEl.innerHTML = `<p class="state-msg">Aún no hay patrullajes registrados.</p>`;
-    return;
-  }
-
-  completados = data;
+  completados = data ?? [];
   pintarCompletados();
 }
 
