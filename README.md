@@ -69,12 +69,21 @@ Se despliega automáticamente con cada push a `main` mediante el workflow [Deplo
 3. Edge Function:
    ```bash
    npx supabase login
-   npx supabase secrets set ORIGENES_PERMITIDOS="https://nido.klkdigitalvallarta.com,http://localhost:<puerto>" --project-ref <ref>
+   npx supabase secrets set ORIGENES_PERMITIDOS="http://localhost:5500" --project-ref <ref>
+   # cuando haya dominio de Vercel: ORIGENES_PERMITIDOS="https://<dominio>,http://localhost:5500"
    npx supabase functions deploy usuarios-admin --project-ref <ref>
    ```
 4. Desplegar el frontend (merge a `main`).
 5. SQL Editor: `20261116000100_auth_2_cerrar_usuarios.sql`. Se aborta si algún usuario activo quedó sin cuenta.
 6. SQL Editor: `20261116000200_auth_3_politicas_tablas.sql`.
+7. Pruebas de permisos: `bash scripts/probar-permisos.sh`. Necesita una cuenta de voluntario y otra de coordinador **de prueba**, con sus credenciales en `.env.pruebas`, que está ignorado por git:
+   ```bash
+   PRUEBA_VOLUNTARIO_CORREO=voluntario.prueba@nido.test
+   PRUEBA_VOLUNTARIO_CONTRASENA=…
+   PRUEBA_COORDINADOR_CORREO=coordinador.prueba@nido.test
+   PRUEBA_COORDINADOR_CONTRASENA=…
+   ```
+   Revisa que anon y el voluntario no lean usuarios ajenos, que el voluntario no pueda cambiar su rol ni usar `usuarios-admin`, que el coordinador sí pueda (crea, desactiva y borra un usuario temporal) y el preflight CORS. No imprime contraseñas ni tokens.
 
 ### Cuentas huérfanas
 
