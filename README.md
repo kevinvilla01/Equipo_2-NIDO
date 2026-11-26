@@ -171,6 +171,7 @@ Los cambios al esquema de Supabase viven en `supabase/migrations/` y se corren *
 | `20261116000200_auth_3_politicas_tablas.sql` | Auth | Políticas y GRANTs del resto de tablas, `patrullajes.creado_por`, default privileges. |
 | `20261126000000_hu12_nido_perdido.sql` | HU-12 | `fecha_perdida`, `perdido_por`, CHECKs de causa, trigger con `eclosionado → perdido` y nido perdido cerrado (NE005), RPC `marcar_nido_perdido`. Va después de las de Auth. |
 | `20261127000000_hu13_nidos_activos.sql` | HU-13 | Tabla `campamentos`, `tramos.campamento_id` y `usuarios.campamento_id` (default: el primer campamento), `campamento_actual_id()`, RLS de `nidos` por campamento y vista `nidos_activos`. Va después de la de HU-12 y **antes** de desplegar el frontend. |
+| `20261128000000_hu16_envio_pendientes.sql` | HU-16 | `client_id` en `patrullajes` y `liberaciones`, `nidos.creado_por` y RPCs idempotentes `registrar_patrullaje`, `registrar_nido`, `registrar_liberacion`. |
 
 Las de Auth se corren en un orden fijo, intercaladas con el script de cuentas y el despliegue: ver [Despliegue del cambio](#despliegue-del-cambio-una-sola-vez-en-este-orden).
 
@@ -269,3 +270,18 @@ Pantalla `nidos-activos.html` (pestaña **Nidos**). Lista los nidos activos del 
   - Los nidos bajados se guardan con `pendiente_envio: false` y `origen: 'servidor'`.
   - Si la respuesta vino completa, se borran los de `origen: 'servidor'` que ya no son activos. Los capturados en el teléfono nunca se borran.
 - **Service worker:** precachea la pantalla y sus módulos (`nido-v10`). Los datos de Supabase no pasan por el SW, porque llevan el JWT del usuario. Se guardan en IndexedDB.
+
+### Enviar pendientes (HU-16)
+
+Patrullajes, nidos y liberaciones se guardan primero en el teléfono con un identificador de cliente (UUID) generado al crearlos: `patrullajes.client_id`, `nidos.clave` y `liberaciones.client_id`. El botón **Enviar pendientes** de la barra los manda en orden **patrullajes → nidos → liberaciones** y al final las pérdidas (solo con sesión de coordinador). La cola vive en `src/js/cola-envio.js` y está probada en `tests/cola-envio.test.js`.
+
+| RPC | Parámetros | Padre que resuelve el servidor |
+|---|---|---|
+| `registrar_patrullaje` | `p_client_id`, `p_fecha`, `p_hora_inicio`, `p_tramo_id`, `p_voluntarios bigint[]` | — (patrullaje y voluntarios en una transacción) |
+| `registrar_nido` | `p_clave`, `p_tramo_id`, `p_especie_id`, `p_referencia_ubicacion`, `p_fecha_hallazgo`, `p_creado_en`, `p_patrullaje_client_id` | `patrullaje_id` por `p_patrullaje_client_id` |
+| `registrar_liberacion` | `p_client_id`, `p_nido_clave`, `p_cantidad_liberada`, `p_fecha`, `p_hora`, `p_sitio`, `p_creado_en` | `nido_id` por `p_nido_clave` |
+
+- **Idempotentes:** un reenvío con el mismo identificador regresa la fila existente si es de quien llama; si es de otro usuario responde `NE007`. Sin sesión responden `NE008`.
+- **Padre que aún no existe:** `NE001`. El registro sigue pendiente y se reintenta.
+- **Red, 5xx o sesión vencida:** el registro vuelve a `pending`. **Rechazos (4xx, `NE00x`):** queda en `error` con el motivo y se puede reintentar con el mismo botón. Si un padre falla, sus hijos no se mandan en esa corrida.
+
