@@ -114,7 +114,21 @@ Lo que cada rol puede hacer en el servidor (RLS + GRANTs, migración `auth_3`). 
 | `patrullaje_voluntario` | Todos | Asignar y quitar: quien puede editar ese patrullaje |
 | `keepalive` | Todos, incluido `anon` | — |
 
-Funciones para políticas y RPC: `public.es_coordinador()` y `public.usuario_actual_id()`. Una tabla o función nueva **no** recibe permisos de `anon` por defecto (default privileges); dale los GRANTs explícitos que necesite.
+Funciones para políticas y RPC: `public.es_coordinador()` y `public.usuario_actual_id()`.
+
+### Tablas y funciones nuevas
+
+- **Las crea `postgres`** (SQL Editor, migraciones): nacen **sin** permisos para `anon` y sin `TRUNCATE`, `TRIGGER` ni `REFERENCES` para `authenticated` (default privileges de `auth_3`). Las funciones necesitan un `grant execute ... to authenticated` explícito.
+- **Las crea `supabase_admin`:** nacen con **todo** para `anon` y `authenticated`. Sus default privileges no se pueden cambiar desde el SQL Editor, porque `postgres` no es miembro de ese rol (`auth_3` lo intenta y solo deja un warning). Revisa con `select tableowner from pg_tables where tablename = '…'` quién creó una tabla del Dashboard.
+- **En cualquier caso**, después de crear o cambiar tablas, vistas o funciones, corre `supabase/verificar-permisos.sql` en el SQL Editor. Solo devuelve problemas:
+  - tabla sin RLS;
+  - RLS sin políticas;
+  - `anon` con cualquier permiso (salvo leer `keepalive`);
+  - `authenticated` con `TRUNCATE`, `TRIGGER` o `REFERENCES`;
+  - funciones que `anon` puede ejecutar;
+  - `SECURITY DEFINER` sin `search_path`.
+
+  **Sin filas = todo en orden.**
 
 ## Variables de entorno
 
