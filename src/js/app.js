@@ -1,16 +1,28 @@
 // Shell común de todas las pantallas: sesión, service worker, estado de conexión y navegación inferior.
 import { asegurarSesion, cerrarSesion, esCoordinador, protegerPagina } from '/js/sesion.js';
+import { enviarPerdidasPendientes } from '/js/cola-perdidas.js';
+
+// Pérdidas de nidos marcadas sin señal (HU-12). Solo con sesión de coordinador: si en el
+// teléfono entra después un voluntario, el servidor las rechazaría (NE006) y quedarían
+// como conflicto.
+function enviarPendientes() {
+  if (!esCoordinador()) return;
+  enviarPerdidasPendientes().catch((err) => console.warn('No se pudieron enviar las pérdidas pendientes:', err));
+}
 
 // Acceso de la pantalla: <body data-acceso="publico|sesion|coordinador">; por defecto 'sesion'.
 // Es comodidad de UI: quién puede leer o escribir qué lo decide RLS en el servidor.
-protegerPagina(document.body.dataset.acceso ?? 'sesion').then(() => {
+protegerPagina(document.body.dataset.acceso ?? 'sesion').then((perfil) => {
   // Enlaces solo para coordinador (Catálogos, Voluntarios…): data-solo-coordinador,
   // con class="oculto" en el HTML para que no parpadeen antes de saber el rol.
   const coordinador = esCoordinador();
   document.querySelectorAll('[data-solo-coordinador]').forEach((elemento) => {
     elemento.classList.toggle('oculto', !coordinador);
   });
+  if (perfil && document.body.dataset.acceso !== 'publico') enviarPendientes();
 });
+
+window.addEventListener('nido:sesion-vigente', enviarPendientes);
 
 document.querySelectorAll('[data-cerrar-sesion]').forEach((boton) => {
   boton.addEventListener('click', () => cerrarSesion());

@@ -1,7 +1,8 @@
 // Persistencia local en IndexedDB: nidos capturados en campo y copia de los catálogos.
 const DB_NOMBRE = 'nido';
 // v2: el store de nidos pasa de keyPath 'id' a 'clave' (el id lo asigna Supabase).
-const DB_VERSION = 2;
+// v3: cola de pérdidas por enviar (HU-12), una por nido.
+const DB_VERSION = 3;
 
 let conexion = null;
 
@@ -22,6 +23,10 @@ function abrir() {
       // Copia local de tramos y especies para poder llenar el formulario sin señal.
       if (!db.objectStoreNames.contains('catalogos')) {
         db.createObjectStore('catalogos', { keyPath: 'nombre' });
+      }
+      // Pérdidas marcadas sin señal: { clave, causa, fecha_perdida, creado_en }.
+      if (!db.objectStoreNames.contains('perdidas_pendientes')) {
+        db.createObjectStore('perdidas_pendientes', { keyPath: 'clave' });
       }
     };
     peticion.onsuccess = () => resolve(peticion.result);
@@ -56,6 +61,28 @@ export function obtenerNido(clave) {
 // Reemplaza el nido completo (mismo keyPath 'clave'); se usa en los cambios de estado.
 export function actualizarNido(nido) {
   return transaccion('nidos', 'readwrite', (store) => store.put(nido));
+}
+
+// Marca el nido como perdido y lo deja en la cola en una sola transacción:
+// o quedan las dos cosas o ninguna.
+export async function marcarPerdidoLocal(nido, perdida) {
+  const db = await abrir();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['nidos', 'perdidas_pendientes'], 'readwrite');
+    tx.objectStore('nidos').put(nido);
+    tx.objectStore('perdidas_pendientes').put(perdida);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+
+export function listarPerdidasPendientes() {
+  return transaccion('perdidas_pendientes', 'readonly', (store) => store.getAll());
+}
+
+export function quitarPerdidaPendiente(clave) {
+  return transaccion('perdidas_pendientes', 'readwrite', (store) => store.delete(clave));
 }
 
 export function guardarCatalogo(nombre, registros) {
