@@ -161,3 +161,22 @@ body.pantalla-login {
               var(--color-borde) 25%, var(--color-borde-fuerte) 50%, var(--color-borde) 75%);
   background-size: 200% 100%;
 }
+
+
+/* ═══ PATRULLAJES · DISEÑO DE css/index_styles.css ══════════════════
+   patrullajes.html conserva el diseño de su lista (index_styles.css)
+   dentro de la barra y la navegación de la app. Aquí se anulan las
+   reglas globales de ese archivo que rompían el shell: body en flex
+   con relleno, html/body sin scroll y .phone a pantalla completa.   */
+
+html:has(body.pantalla-patrullajes),
+body.pantalla-patrullajes { height: auto; overflow: visible; }
+body.pantalla-patrullajes {
+  display: block;
+  padding-top: 0; padding-left: 0; padding-right: 0;
+}
+body.pantalla-patrullajes .phone {
+  width: auto; height: auto; max-width: none; min-height: 0;
+  border-radius: 0; border: 0; box-shadow: none; overflow: visible;
+  padding-top: var(--e-4);
+}
