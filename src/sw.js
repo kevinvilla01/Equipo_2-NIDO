@@ -1,5 +1,5 @@
 // Service worker: precachea el shell de la app y lo sirve desde caché cuando no hay señal.
-const CACHE = 'nido-v7';
+const CACHE = 'nido-v8';
 // Con señal débil el fetch se queda colgado; pasado este tiempo se sirve la copia en caché.
 const TIMEOUT_RED_MS = 3000;
 const PRECACHE = [
@@ -11,6 +11,7 @@ const PRECACHE = [
   '/finalizar-patrullaje.html',
   '/nuevo-nido.html',
   '/reubicar-nido.html',
+  '/marcar-perdido.html',
   '/catalogos.html',
   '/alta-tramo.html',
   '/alta-especie.html',
@@ -37,6 +38,7 @@ const PRECACHE = [
   '/js/catalogos.js',
   '/js/uuid.js',
   '/js/estados-nido.js',
+  '/js/cola-perdidas.js',
 ];
 
 self.addEventListener('install', (event) => {
