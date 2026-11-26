@@ -9,6 +9,8 @@ if (!patrullajeId) {
 }
 
 const contenidoEl = document.getElementById('contenido-patrullaje');
+// 'HH:MM' del inicio; la hora de fin debe ser posterior.
+let horaInicio = '';
 
 async function cargarDetalle() {
     
@@ -63,7 +65,8 @@ async function cargarDetalle() {
     document.getElementById('d-fecha').textContent = data.fecha;
     document.getElementById('d-tramo').textContent = data.tramo_id?.nombre ?? 'Sin tramo asignado';
     document.getElementById('d-voluntarios').textContent = voluntarios;
-    document.getElementById('d-inicio').textContent = data.hora_inicio.slice(0, 5);
+    horaInicio = data.hora_inicio.slice(0, 5);
+    document.getElementById('d-inicio').textContent = horaInicio;
 
       return true;
 }
@@ -231,7 +234,8 @@ const { data, error} = await supabase
       finalizado: true
     })
     .eq('id', patrullajeId)
-      .single();
+    // Sin .select() no regresa filas y no se puede saber si RLS dejó actualizar.
+    .select();
 
         if (error) {
     console.error(error);
