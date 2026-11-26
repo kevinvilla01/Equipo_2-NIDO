@@ -8,6 +8,8 @@
   <link rel="icon" href="/icons/tortuga_logo.png">
   <link rel="stylesheet" href="/css/ui.css">
   <link rel="stylesheet" href="/css/app.css">
+  <script src="/config.js"></script>
+  <script src="/vendor/supabase.js"></script>
   <script type="module" src="/js/app.js"></script>
   <style>
     .pantalla-voluntarios .contenedor { display: flex; flex-direction: column; }
@@ -106,7 +108,7 @@
     }
   </style>
 </head>
-<body class="tema-oscuro app pantalla-voluntarios">
+<body class="tema-oscuro app pantalla-voluntarios" data-acceso="coordinador">
   <header class="barra">
     <a class="btn btn--fantasma barra__volver" href="catalogos.html" aria-label="Volver">
       <span aria-hidden="true">‹</span>
@@ -136,7 +138,9 @@
   </div>
 
   <script type="module">
-    import { supabase } from './scripts/supabase.js';
+    import { supabase } from '/js/supabase.js';
+    import { administrarUsuario } from '/js/usuarios-admin.js';
+    import { leerPerfil } from '/js/sesion.js';
 
     const estadoSync = document.getElementById('estado-sync');
     const estadoSyncIcono = document.getElementById('estado-sync-icono');
@@ -234,19 +238,12 @@
     async function cambiarActivo(voluntario, nuevoValor) {
       limpiarAviso();
 
-      const { data, error } = await supabase
-        .from('usuarios')
-        .update({ activo: nuevoValor })
-        .eq('id', voluntario.id)
-        .select('id');
-
-      if (error) {
-        console.error('Error de Supabase al cambiar activo:', error);
-        mostrarAviso('No se pudo cambiar el estado. Revisa tu conexión e intenta de nuevo.');
-      } else if (data.length === 0) {
-        mostrarAviso('No se guardó el cambio: la base de datos no permite editar usuarios (falta la política de UPDATE en la tabla usuarios).');
-      } else {
+      try {
+        await administrarUsuario('actualizar', { id: voluntario.id, activo: nuevoValor });
         voluntario.activo = nuevoValor;
+      } catch (error) {
+        console.error('No se pudo cambiar activo:', error);
+        mostrarAviso(error.message || 'No se pudo cambiar el estado. Intenta de nuevo.');
       }
 
       renderizarVoluntarios();
@@ -299,7 +296,8 @@
             <span class="fila-voluntario__chevron" aria-hidden="true">›</span>
           </a>
           <label class="switch">
-            <input type="checkbox" data-id="${escaparHTML(item.id)}" ${item.activo ? 'checked' : ''}>
+            <input type="checkbox" data-id="${escaparHTML(item.id)}" ${item.activo ? 'checked' : ''}
+                   ${String(item.id) === String(leerPerfil()?.id) ? 'disabled title="No puedes desactivar tu propia cuenta"' : ''}>
             <span class="switch__pista" aria-hidden="true"></span>
             <span class="sr-solo">${escaparHTML(item.nombre)}: ${item.activo ? 'activo' : 'inactivo'}</span>
           </label>`;

@@ -1,5 +1,13 @@
 import { supabase } from './supabase.js';
 
+// Texto de la base de datos (nombres, observaciones) dentro de plantillas HTML:
+// se escapa para que no se interprete como HTML.
+function escaparHTML(texto) {
+  return String(texto ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[c]);
+}
+
 async function registrarPatrullaje() {
 
   const horaInicio = document.getElementById('hora-inicio').value;
@@ -76,8 +84,10 @@ async function cargarVoluntarios() {
     console.log('cargarVoluntarios se ejecutó');
 
   const {data, error} = await supabase
-  .from('usuarios')
+  // Vista con solo id y nombre: un voluntario no puede leer la tabla usuarios completa.
+  .from('directorio_usuarios')
   .select('id, nombre')
+  .eq('activo', true)
   .order('nombre');
 
 
@@ -90,7 +100,7 @@ if (error){
   contenedor.innerHTML = data.map(u => `
     <label class="checkbox-item">
       <input type="checkbox" value="${u.id}" name="voluntario">
-      ${u.nombre}
+      ${escaparHTML(u.nombre)}
     </label>
   `).join('');
 }
@@ -121,7 +131,7 @@ async function cargarTramos() {
   const selectEl = document.getElementById('tramo');
   selectEl.innerHTML =
     '<option value="">Selecciona un tramo</option>' +
-    data.map(t => `<option value="${t.id}">${t.nombre}</option>`).join('');
+    data.map(t => `<option value="${t.id}">${escaparHTML(t.nombre)}</option>`).join('');
 }
 cargarTramos();
 

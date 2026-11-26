@@ -1,6 +1,5 @@
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+// Cliente único de Supabase para toda la app.
+// La página debe cargar antes /config.js (lo genera el build) y /vendor/supabase.js (supabase-js 2.117.2, UMD).
+const { SUPABASE_URL, SUPABASE_ANON_KEY } = window.NIDO_CONFIG;
 
-// --- Configura tus credenciales de Supabase ---
-const SUPABASE_URL = 'https://gnjwxvaqyajxddchzjnw.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imduand4dmFxeWFqeGRkY2h6am53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxMTcxOTAsImV4cCI6MjEwNTY5MzE5MH0.yX6BazCEgXKohynuSiE_VMAWVGojfxa5_UA5SelLnik';
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+export const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);

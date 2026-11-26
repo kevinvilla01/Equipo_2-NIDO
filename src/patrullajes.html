@@ -1,23 +1,37 @@
-<!DOCTYPE html>
-<html lang="es">
+<!doctype html>
+<html lang="es-MX">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Patrullajes</title>
-<link rel="stylesheet" href="css/index_styles.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Patrullajes — NIDO</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/tortuga_logo.png">
+  <link rel="stylesheet" href="/css/index_styles.css">
+  <link rel="stylesheet" href="/css/ui.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script src="/config.js"></script>
+  <script src="/vendor/supabase.js"></script>
+  <script type="module" src="/js/app.js"></script>
 </head>
-<body>
+<body class="tema-oscuro app con-nav-inferior pantalla-patrullajes">
+
+  <header class="barra">
+    <h1 class="barra__titulo">Patrullajes</h1>
+    <div class="barra__acciones">
+      <a class="btn btn--fantasma btn--pequeno oculto" href="/catalogos.html" data-solo-coordinador>Catálogos</a>
+      <a class="btn btn--fantasma btn--pequeno oculto" href="/voluntarios.html" data-solo-coordinador>Voluntarios</a>
+      <button class="btn btn--fantasma btn--pequeno" type="button" data-cerrar-sesion>Salir</button>
+      <span class="estado-sync" id="estado-sync">
+        <span aria-hidden="true" id="estado-sync-icono">✓</span>
+        <span id="estado-sync-texto">En línea</span>
+      </span>
+    </div>
+  </header>
+
+  <div class="franja-offline" role="status">Sin conexión. Los patrullajes se cargan al volver la señal.</div>
 
   <div class="phone">
     <div class="content">
-    <header class="topbar">
-      <h1>Patrullajes</h1>
-      <span class="sync-status">
-        <svg viewBox="0 0 24 24" class="icon-check"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Sincronizado
-      </span>
-    </header>
-
       <div class="filtros">
         <input type="search" id="buscar-tramo" placeholder="Buscar por tramo..." autocomplete="off">
         <input type="date" id="filtro-fecha">
@@ -36,7 +50,7 @@
         <div class="lista-titulo">
             <h3>Patrullajes completados</h3>
         <div class="lista-completados" id="patrol-list-completed">
-        
+
           <p class="state-msg">Cargando patrullajes...</p>
         </div>
         </div>
@@ -46,26 +60,16 @@
       <a href="registrar-patrulla.html" class="cta">Iniciar patrullaje</a>
     </div>
     </div>
-
-    <nav class="tabbar">
-      <button class="tab active">
-        <svg viewBox="0 0 24 24" class="icon-tab"><path d="M12 2l8 4v6c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6l8-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
-        <span>Patrullaje</span>
-      </button>
-      <button class="tab">
-        <svg viewBox="0 0 24 24" class="icon-tab"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-        <span>Nidos</span>
-      </button>
-      <button class="tab">
-        <svg viewBox="0 0 24 24" class="icon-tab"><path d="M12 3c3 3.5 6 6.8 6 10.5A6 6 0 0 1 6 13.5C6 9.8 9 6.5 12 3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
-        <span>Liberaciones</span>
-      </button>
-    </nav>
   </div>
 
-    <script type="module" src="js/patrullajes-lista.js"></script>
+  <nav class="nav-inferior" data-activa="patrullaje"></nav>
 
-
-
+  <script type="module" src="/js/patrullajes-lista.js"></script>
+  <script type="module">
+    // Pantalla de entrada tras el login: deja tramos y especies en IndexedDB
+    // para poder registrar nidos sin señal.
+    import { descargarCatalogos } from '/js/catalogos.js';
+    descargarCatalogos();
+  </script>
 </body>
 </html>

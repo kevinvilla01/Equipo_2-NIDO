@@ -1,4 +1,29 @@
-// Shell común de todas las pantallas: service worker, estado de conexión y navegación inferior.
+// Shell común de todas las pantallas: sesión, service worker, estado de conexión y navegación inferior.
+import { asegurarSesion, cerrarSesion, esCoordinador, protegerPagina } from '/js/sesion.js';
+
+// Acceso de la pantalla: <body data-acceso="publico|sesion|coordinador">; por defecto 'sesion'.
+// Es comodidad de UI: quién puede leer o escribir qué lo decide RLS en el servidor.
+protegerPagina(document.body.dataset.acceso ?? 'sesion').then(() => {
+  // Enlaces solo para coordinador (Catálogos, Voluntarios…): data-solo-coordinador,
+  // con class="oculto" en el HTML para que no parpadeen antes de saber el rol.
+  const coordinador = esCoordinador();
+  document.querySelectorAll('[data-solo-coordinador]').forEach((elemento) => {
+    elemento.classList.toggle('oculto', !coordinador);
+  });
+});
+
+document.querySelectorAll('[data-cerrar-sesion]').forEach((boton) => {
+  boton.addEventListener('click', () => cerrarSesion());
+});
+
+// Al volver la señal se deja el JWT vigente y se avisa a quien tenga envíos pendientes
+// (escuchan 'nido:sesion-vigente'). Si Auth rechaza la sesión, la pantalla manda al login
+// con protegerPagina() y lo pendiente sigue en IndexedDB.
+window.addEventListener('online', async () => {
+  const estado = await asegurarSesion();
+  if (estado === 'vigente') window.dispatchEvent(new Event('nido:sesion-vigente'));
+  else if (estado === 'rechazada') protegerPagina(document.body.dataset.acceso ?? 'sesion');
+});
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch((err) => {

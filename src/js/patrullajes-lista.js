@@ -9,6 +9,14 @@ const limpiarEl = document.getElementById('limpiar-filtros');
 
 let completados = [];
 
+// Texto de la base de datos (nombres, observaciones) dentro de plantillas HTML:
+// se escapa para que no se interprete como HTML.
+function escaparHTML(texto) {
+  return String(texto ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[c]);
+}
+
 
 function formatFecha(fechaStr) {
   const fecha = new Date(fechaStr + 'T00:00:00');
@@ -86,11 +94,11 @@ const Voluntarios = (patrullaje_voluntario ?? [])
           <span class="${badgeClase}"><span class="dot"></span>${badgeTexto}</span>
         </div>
         <dl class="details">
-          <div><dt>Tramo</dt><dd>${nombreTramo}</dd></div>
+          <div><dt>Tramo</dt><dd>${escaparHTML(nombreTramo)}</dd></div>
           <div><dt>Hora de inicio</dt><dd>${hora_inicio.slice(0, 5)}</dd></div>
           <div><dt>Hora de fin</dt><dd>${finTexto}</dd></div>
-          <div><dt>Observaciones</dt><dd>${obsTexto}</dd></div>
-          <div><dt>Voluntarios</dt><dd>${Voluntarios}</dd></div>
+          <div><dt>Observaciones</dt><dd>${escaparHTML(obsTexto)}</dd></div>
+          <div><dt>Voluntarios</dt><dd>${escaparHTML(Voluntarios)}</dd></div>
 
         </dl>
         <hr>
@@ -149,7 +157,7 @@ async function cargarPatrullajesCreados() {
       id, fecha, hora_inicio, hora_fin, marea, fase_lunar, clima,
       observaciones, pendiente_envio, creado_en, finalizado,
       tramo_id:tramos ( nombre ),
-      patrullaje_voluntario ( usuarios ( nombre ) )
+      patrullaje_voluntario ( usuarios:directorio_usuarios ( nombre ) )
 
     `)
     .eq('finalizado', false)
@@ -176,7 +184,7 @@ async function cargarPatrullajesCompletados() {
       id, fecha, hora_inicio, hora_fin, marea, fase_lunar, clima,
       observaciones, pendiente_envio, creado_en, finalizado,
       tramo_id:tramos ( nombre ),
-      patrullaje_voluntario ( usuarios ( nombre ) )
+      patrullaje_voluntario ( usuarios:directorio_usuarios ( nombre ) )
 
     `)
     .eq('finalizado', true)
@@ -184,16 +192,11 @@ async function cargarPatrullajesCompletados() {
 
   if (error) {
     console.error(error);
-    listEl.innerHTML = `<p class="state-msg">No se pudieron cargar los patrullajes.</p>`;
+    listElCompleted.innerHTML = `<p class="state-msg">No se pudieron cargar los patrullajes.</p>`;
     return;
   }
 
-  if (!data || data.length === 0) {
-    listEl.innerHTML = `<p class="state-msg">Aún no hay patrullajes registrados.</p>`;
-    return;
-  }
-
-  completados = data;
+  completados = data ?? [];
   pintarCompletados();
 }
 

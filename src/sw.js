@@ -1,5 +1,5 @@
 // Service worker: precachea el shell de la app y lo sirve desde caché cuando no hay señal.
-const CACHE = 'nido-v5';
+const CACHE = 'nido-v7';
 // Con señal débil el fetch se queda colgado; pasado este tiempo se sirve la copia en caché.
 const TIMEOUT_RED_MS = 3000;
 const PRECACHE = [
@@ -20,11 +20,16 @@ const PRECACHE = [
   '/manifest.json',
   '/css/ui.css',
   '/css/app.css',
+  '/css/index_styles.css',
+  '/css/estilos_registrar_patrulla.css',
+  '/css/estilos_finalizar_patrullaje.css',
   '/icons/icon.svg',
   '/icons/tortuga_logo.png',
   '/vendor/supabase.js',
   '/js/app.js',
   '/js/supabase.js',
+  '/js/sesion.js',
+  '/js/usuarios-admin.js',
   '/js/patrullajes-lista.js',
   '/js/registrar-patrulla.js',
   '/js/finalizar-patrullaje.js',
