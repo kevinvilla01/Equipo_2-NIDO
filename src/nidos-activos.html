@@ -233,6 +233,7 @@
     // app.js sincroniza al abrir y al volver la señal; aquí solo se repinta.
     window.addEventListener('nido:nidos-sincronizados', () => pintar());
     window.addEventListener('nido:perdidas-actualizadas', () => pintar());
+    window.addEventListener('nido:envio-terminado', () => pintar());
     window.addEventListener('online', () => pintar());
     window.addEventListener('offline', () => pintar());
 

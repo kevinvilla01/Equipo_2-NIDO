@@ -2,6 +2,8 @@
 import { asegurarSesion, cerrarSesion, esCoordinador, protegerPagina } from '/js/sesion.js';
 import { enviarPerdidasPendientes } from '/js/cola-perdidas.js';
 import { sincronizarNidosActivos } from '/js/sync-nidos.js';
+import { avisarPendientes, enviando, enviarPendientes as enviarTodoLoPendiente } from '/js/envio-pendientes.js';
+import { textoResumen } from '/js/cola-envio.js';
 
 // Pérdidas de nidos marcadas sin señal (HU-12). Solo con sesión de coordinador: si en el
 // teléfono entra después un voluntario, el servidor las rechazaría (NE006) y quedarían
@@ -21,6 +23,7 @@ protegerPagina(document.body.dataset.acceso ?? 'sesion').then((perfil) => {
     elemento.classList.toggle('oculto', !coordinador);
   });
   if (perfil && document.body.dataset.acceso !== 'publico') {
+    montarBotonPendientes();
     enviarPendientes();
     // Nidos activos y catálogos para el trabajo sin señal (HU-13).
     sincronizarNidosActivos();
@@ -28,7 +31,9 @@ protegerPagina(document.body.dataset.acceso ?? 'sesion').then((perfil) => {
 });
 
 window.addEventListener('nido:sesion-vigente', () => {
-  enviarPendientes();
+  // Al volver la señal se manda todo lo pendiente (HU-16); incluye las pérdidas.
+  if (botonPendientes) enviarDesdeBarra({ automatico: true });
+  else enviarPendientes();
   sincronizarNidosActivos({ forzar: true });
 });
 
@@ -96,4 +101,78 @@ if (nav) {
     const actual = pestana.id === nav.dataset.activa ? ' aria-current="page"' : '';
     return `<a class="nav-inferior__item" href="${pestana.href}"${actual}>${icono}<span>${pestana.texto}</span></a>`;
   }).join('');
+}
+
+// HU-16 · "Enviar pendientes" en la barra de todas las pantallas con sesión: contador de
+// patrullajes, nidos y liberaciones por enviar, y el botón que los manda.
+let botonPendientes = null;
+let totalPendientes = 0;
+
+function pintarBotonPendientes() {
+  if (!botonPendientes) return;
+  const ocupado = enviando();
+  botonPendientes.querySelector('[data-total]').textContent = String(totalPendientes);
+  botonPendientes.querySelector('[data-texto]').textContent = ocupado ? 'Enviando…' : 'Enviar pendientes';
+  botonPendientes.classList.toggle('btn-pendientes--vacio', totalPendientes === 0);
+  botonPendientes.disabled = ocupado || totalPendientes === 0 || !navigator.onLine;
+  botonPendientes.setAttribute('aria-busy', String(ocupado));
+  botonPendientes.title = !navigator.onLine ? 'Sin conexión' : totalPendientes === 0 ? 'No hay pendientes' : '';
+}
+
+function avisoEnvio(texto, tipo) {
+  let aviso = document.getElementById('aviso-envio');
+  if (!aviso) {
+    aviso = document.createElement('div');
+    aviso.id = 'aviso-envio';
+    aviso.setAttribute('role', 'status');
+    document.body.append(aviso);
+  }
+  aviso.className = `aviso aviso--${tipo} aviso-envio`;
+  aviso.textContent = texto;
+  clearTimeout(aviso.temporizador);
+  aviso.temporizador = setTimeout(() => aviso.remove(), tipo === 'exito' ? 4000 : 10000);
+}
+
+async function enviarDesdeBarra({ automatico = false } = {}) {
+  if (enviando() || !navigator.onLine) return;
+  if (automatico && totalPendientes === 0) return;
+  const promesa = enviarTodoLoPendiente();
+  pintarBotonPendientes();
+  try {
+    const resumen = await promesa;
+    if (resumen.estado === 'sin_red') {
+      if (!automatico) avisoEnvio('Sin conexión con el servidor. Lo pendiente sigue guardado en el teléfono.', 'aviso');
+      return;
+    }
+    const rechazos = resumen.errores.filter((e) => !e.reintentable).map((e) => e.motivo);
+    const texto = textoResumen(resumen) + (rechazos.length ? `. Motivo: ${rechazos.join(' · ')}` : '.');
+    if (!automatico || resumen.enviados || resumen.fallidos) avisoEnvio(texto, resumen.fallidos ? 'error' : 'exito');
+    window.dispatchEvent(new CustomEvent('nido:envio-terminado', { detail: resumen }));
+  } catch (err) {
+    console.error('No se pudieron enviar los pendientes:', err);
+    avisoEnvio('No se pudieron enviar los pendientes. Intenta de nuevo.', 'error');
+  } finally {
+    pintarBotonPendientes();
+  }
+}
+
+function montarBotonPendientes() {
+  const acciones = document.querySelector('.barra .barra__acciones');
+  if (!acciones || botonPendientes) return;
+  botonPendientes = document.createElement('button');
+  botonPendientes.type = 'button';
+  botonPendientes.className = 'btn btn--secundario btn--pequeno btn-pendientes';
+  botonPendientes.innerHTML = '<span data-texto>Enviar pendientes</span> <span class="btn-pendientes__total" data-total aria-label="pendientes">0</span>';
+  botonPendientes.addEventListener('click', () => enviarDesdeBarra());
+  acciones.prepend(botonPendientes);
+  window.addEventListener('nido:pendientes', (evento) => {
+    totalPendientes = evento.detail.total;
+    pintarBotonPendientes();
+  });
+  window.addEventListener('nido:perdidas-actualizadas', () => avisarPendientes());
+  window.addEventListener('online', pintarBotonPendientes);
+  window.addEventListener('offline', pintarBotonPendientes);
+  // Al volver a la pestaña (o con el botón Atrás del navegador) se recuenta.
+  window.addEventListener('pageshow', () => avisarPendientes().catch(() => {}));
+  avisarPendientes().catch((err) => console.warn('No se pudieron contar los pendientes:', err));
 }

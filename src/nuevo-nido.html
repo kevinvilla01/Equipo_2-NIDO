@@ -53,6 +53,14 @@
           <span class="campo__error oculto">Escribe la referencia de ubicación.</span>
         </div>
 
+        <div class="campo">
+          <label class="campo__etiqueta" for="patrullaje">Patrullaje</label>
+          <select class="campo__control" id="patrullaje" name="patrullaje_client_id">
+            <option value="">Sin patrullaje</option>
+          </select>
+          <span class="campo__ayuda">Opcional. Los patrullajes de hoy registrados en este teléfono.</span>
+        </div>
+
         <button class="btn btn--bloque mt-3" type="submit" id="btn-guardar">Guardar nido</button>
       </form>
 
@@ -74,9 +82,10 @@
   <nav class="nav-inferior" data-activa="nidos"></nav>
 
   <script type="module">
-    import { guardarNido, listarNidos } from '/js/db.js';
+    import { guardarNido, listarNidos, listarPatrullajesLocales } from '/js/db.js';
     import { cargarCatalogo, CAMPO_NOMBRE } from '/js/catalogos.js';
     import { generarUUID } from '/js/uuid.js';
+    import { avisarPendientes } from '/js/envio-pendientes.js';
     import { CAUSAS_PERDIDA, ESTADOS, ETIQUETA_ESTADO, puedeTransicionar } from '/js/estados-nido.js';
     import { esCoordinador } from '/js/sesion.js';
 
@@ -89,6 +98,17 @@
     function mostrarAviso(texto, tipo) {
       aviso.textContent = texto;
       aviso.className = `aviso aviso--${tipo} mt-5`;
+    }
+
+    // Patrullajes de hoy guardados en el teléfono (HU-16), el más reciente primero.
+    async function llenarPatrullajes() {
+      const hoy = new Date().toLocaleDateString('en-CA');
+      const nombres = new Map((await cargarCatalogo('tramos')).map((t) => [t.id, t.nombre]));
+      const select = document.getElementById('patrullaje');
+      (await listarPatrullajesLocales())
+        .filter((p) => p.fecha === hoy)
+        .sort((a, b) => b.hora_inicio.localeCompare(a.hora_inicio))
+        .forEach((p) => select.add(new Option(`${p.hora_inicio} · ${nombres.get(p.tramo_id) ?? 'Tramo'}`, p.client_id)));
     }
 
     async function llenarSelect(select, tabla) {
@@ -220,12 +240,15 @@
         // Hora del hallazgo, no de la sincronización.
         creado_en: ahora.toISOString(),
         patrullaje_id: null,
+        // HU-16: el patrullaje se liga por su client_id; el servidor lo resuelve a su id al enviar.
+        patrullaje_client_id: document.getElementById('patrullaje').value || null,
       };
 
       const boton = document.getElementById('btn-guardar');
       boton.disabled = true;
       try {
         await guardarNido(nido);
+        avisarPendientes().catch(() => {});
         evento.target.reset();
         mostrarAviso('Nido guardado en el teléfono. Queda pendiente de envío.', 'exito');
         await pintarLista();
@@ -240,6 +263,7 @@
     const [totalTramos, totalEspecies] = await Promise.all([
       llenarSelect(selectTramo, 'tramos'),
       llenarSelect(selectEspecie, 'especies'),
+      llenarPatrullajes(),
     ]);
     if (totalTramos === 0 || totalEspecies === 0) {
       mostrarAviso('No hay tramos o especies en este teléfono. Abre esta pantalla una vez con señal para descargarlos.', 'error');
@@ -259,6 +283,8 @@
 
     // La cola de pérdidas (app.js) avisa cuando envió o rechazó alguna.
     window.addEventListener('nido:perdidas-actualizadas', () => pintarLista());
+    // Al terminar "Enviar pendientes" (HU-16) cambian las etiquetas de envío.
+    window.addEventListener('nido:envio-terminado', () => pintarLista());
   </script>
 </body>
 </html>

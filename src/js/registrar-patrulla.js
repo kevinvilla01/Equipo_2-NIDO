@@ -1,4 +1,11 @@
-import { supabase } from './supabase.js';
+// HU-16: el patrullaje se guarda primero en el teléfono con su client_id y se envía con
+// "Enviar pendientes" (registrar_patrullaje, idempotente). Tramos y voluntarios salen de
+// la copia local de los catálogos (HU-13) cuando no hay señal.
+import { cargarCatalogo } from '/js/catalogos.js';
+import { guardarPatrullajeLocal } from '/js/db.js';
+import { avisarPendientes, enviarPendientes } from '/js/envio-pendientes.js';
+import { ESTADO_SYNC } from '/js/cola-envio.js';
+import { generarUUID } from '/js/uuid.js';
 
 // Texto de la base de datos (nombres, observaciones) dentro de plantillas HTML:
 // se escapa para que no se interprete como HTML.
@@ -37,43 +44,36 @@ async function registrarPatrullaje() {
     return;
   }
 
-  const { data, error } = await supabase
-    .from('patrullajes')
-    .insert({
-      fecha: Fecha,
-      hora_inicio: horaInicio,
-      tramo_id: tramoId
-    })
-      .select()
-      .single();
+  // client_id generado al crearlo, no al enviarlo: un reenvío no duplica el patrullaje.
+  const patrullaje = {
+    client_id: generarUUID(),
+    fecha: Fecha,
+    hora_inicio: horaInicio,
+    tramo_id: Number(tramoId),
+    voluntarios: voluntariosIds.map(Number),
+    creado_en: new Date().toISOString(),
+    sync: { estado: ESTADO_SYNC.PENDIENTE, intentos: 0, ultimo_error: null },
+  };
 
-  if (error) {
+  try {
+    await guardarPatrullajeLocal(patrullaje);
+  } catch (error) {
     console.error(error);
-    alert ('No se pudo insertar el patrullaje');
+    alert('No se pudo guardar el patrullaje en el teléfono. Intenta de nuevo.');
     return;
   }
+  await avisarPendientes().catch(() => {});
 
-  const patrullajeId = data.id;
-
-  const filas = voluntariosIds.map(usuarioId => ({
-    patrullaje_id: patrullajeId,
-    usuario_id: usuarioId
-  }));
-
-console.log('filas a insertar:', filas);
-
-
-    const { error: errorVoluntarios } = await supabase
-    .from('patrullaje_voluntario')
-    .insert(filas);
-
-  if (errorVoluntarios) {
-    console.error(errorVoluntarios);
-    alert('El patrullaje se guardó, pero no se pudieron asociar los voluntarios: ' + errorVoluntarios.message);
-    return;
+  // Con señal se intenta enviar ya (máx. 5 s); si no, queda en "Enviar pendientes".
+  let enviado = false;
+  if (navigator.onLine) {
+    await Promise.race([
+      enviarPendientes().then((r) => { enviado = r.estado === 'ok' && r.fallidos === 0; }).catch(() => {}),
+      new Promise((resolve) => setTimeout(resolve, 5000)),
+    ]);
   }
- 
-    alert ('Patrullaje guardado coan éxito');
+
+  alert(enviado ? 'Patrullaje guardado con éxito' : 'Patrullaje guardado en el teléfono. Queda pendiente de envío.');
     window.location.href = 'patrullajes.html';
 
 }
@@ -83,18 +83,10 @@ async function cargarVoluntarios() {
 
     console.log('cargarVoluntarios se ejecutó');
 
-  const {data, error} = await supabase
-  // Vista con solo id y nombre: un voluntario no puede leer la tabla usuarios completa.
-  .from('directorio_usuarios')
-  .select('id, nombre')
-  .eq('activo', true)
-  .order('nombre');
-
-
-if (error){
-  console.error(error);
-  return;
-}
+  // Vista con solo id y nombre (directorio_usuarios); sin señal, la copia local.
+  const data = (await cargarCatalogo('directorio_usuarios'))
+    .filter((u) => u.activo !== false)
+    .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es'));
 
   const contenedor = document.getElementById('voluntarios-list');
   contenedor.innerHTML = data.map(u => `
@@ -118,15 +110,8 @@ function obtenerVoluntariosSeleccionados(){
 async function cargarTramos() {
 
 
-  const { data, error } = await supabase
-    .from('tramos')
-    .select('id, nombre')
-    .order('nombre');
-
-  if (error) {
-    console.error(error);
-    return;
-  }
+  const data = (await cargarCatalogo('tramos'))
+    .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es'));
 
   const selectEl = document.getElementById('tramo');
   selectEl.innerHTML =
