@@ -77,6 +77,7 @@
     import { guardarNido, listarNidos } from '/js/db.js';
     import { cargarCatalogo, CAMPO_NOMBRE } from '/js/catalogos.js';
     import { generarUUID } from '/js/uuid.js';
+    import { avisarPendientes } from '/js/envio-pendientes.js';
     import { CAUSAS_PERDIDA, ESTADOS, ETIQUETA_ESTADO, puedeTransicionar } from '/js/estados-nido.js';
     import { esCoordinador } from '/js/sesion.js';
 
@@ -226,6 +227,7 @@
       boton.disabled = true;
       try {
         await guardarNido(nido);
+        avisarPendientes().catch(() => {});
         evento.target.reset();
         mostrarAviso('Nido guardado en el teléfono. Queda pendiente de envío.', 'exito');
         await pintarLista();
@@ -259,6 +261,8 @@
 
     // La cola de pérdidas (app.js) avisa cuando envió o rechazó alguna.
     window.addEventListener('nido:perdidas-actualizadas', () => pintarLista());
+    // Al terminar "Enviar pendientes" (HU-16) cambian las etiquetas de envío.
+    window.addEventListener('nido:envio-terminado', () => pintarLista());
   </script>
 </body>
 </html>

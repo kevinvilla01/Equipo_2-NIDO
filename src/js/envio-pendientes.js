@@ -2,7 +2,7 @@
 // idempotentes de supabase/migrations/20261128000000_hu16_envio_pendientes.sql en orden
 // patrullajes → nidos → liberaciones, y después las pérdidas (cola-perdidas.js, HU-12).
 import { supabase } from '/js/supabase.js';
-import { asegurarSesion } from '/js/sesion.js';
+import { asegurarSesion, esCoordinador } from '/js/sesion.js';
 import { enviarPerdidasPendientes } from '/js/cola-perdidas.js';
 import {
   actualizarCampos, contarPerdidasPendientes, listarLiberacionesLocales, listarNidos, listarPatrullajesLocales,
@@ -68,7 +68,8 @@ async function leerCola() {
 }
 
 export async function contarPendientes() {
-  const [cola, perdidas] = await Promise.all([leerCola(), contarPerdidasPendientes()]);
+  // Las pérdidas solo las envía un coordinador (NE006 para los demás), así que solo cuentan con él.
+  const [cola, perdidas] = await Promise.all([leerCola(), esCoordinador() ? contarPerdidasPendientes() : 0]);
   return cola.patrullajes.length + cola.nidos.length + cola.liberaciones.length + perdidas;
 }
 
@@ -88,7 +89,7 @@ async function enviar() {
     guardar: (tipo, registro, cambios) => actualizarCampos(tipo, registro[LLAVE[tipo]], cambios),
   });
   // Las pérdidas van al final: su nido tiene que existir ya en el servidor.
-  await enviarPerdidasPendientes().catch((err) => console.warn('No se pudieron enviar las pérdidas pendientes:', err));
+  if (esCoordinador()) await enviarPerdidasPendientes().catch((err) => console.warn('No se pudieron enviar las pérdidas pendientes:', err));
   return { estado: 'ok', ...resumen };
 }
 

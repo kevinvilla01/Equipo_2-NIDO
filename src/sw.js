@@ -43,6 +43,8 @@ const PRECACHE = [
   '/js/uuid.js',
   '/js/estados-nido.js',
   '/js/cola-perdidas.js',
+  '/js/cola-envio.js',
+  '/js/envio-pendientes.js',
   '/js/nidos-activos.js',
   '/js/sync-nidos.js',
 ];

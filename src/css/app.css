@@ -180,3 +180,21 @@ body.pantalla-patrullajes .phone {
   border-radius: 0; border: 0; box-shadow: none; overflow: visible;
   padding-top: var(--e-4);
 }
+
+/* HU-16 · Botón "Enviar pendientes" de la barra y aviso con el resumen del envío. */
+.btn-pendientes { gap: var(--e-2); white-space: nowrap; }
+.btn-pendientes__total {
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--color-aviso); color: #1a1a1a; font-weight: 700; font-size: var(--t-xs);
+}
+.btn-pendientes--vacio .btn-pendientes__total { background: var(--color-borde-fuerte); color: var(--color-texto-suave); }
+.aviso-envio {
+  position: fixed; left: var(--e-4); right: var(--e-4); bottom: calc(72px + env(safe-area-inset-bottom));
+  z-index: 50; margin: 0; box-shadow: 0 4px 16px rgba(0, 0, 0, .35);
+}
+@media (max-width: 420px) {
+  /* En teléfono el botón muestra solo el contador para no empujar el título. */
+  .btn-pendientes [data-texto] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .btn-pendientes::before { content: "⇡"; font-weight: 700; }
+}
