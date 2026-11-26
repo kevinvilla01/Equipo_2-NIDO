@@ -67,36 +67,10 @@
       background: linear-gradient(90deg,
                   var(--color-borde) 25%, var(--color-borde-fuerte) 50%, var(--color-borde) 75%);
       background-size: 200% 100%;
-
-    body.pantalla-liberaciones { padding-bottom: 80px; }
-
-    .barra-nav {
-      position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
-      display: flex; align-items: stretch;
-      background: var(--color-superficie); border-top: 1px solid var(--color-borde);
-      padding-bottom: env(safe-area-inset-bottom);
-    }
-    .barra-nav__item {
-      position: relative; flex: 1; min-height: 56px;
-      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
-      color: var(--color-texto-tenue); text-decoration: none;
-      font-size: var(--t-xs); font-weight: 600;
-    }
-    .barra-nav__icono {
-      width: 22px; height: 22px; border-radius: 6px;
-      background: currentColor; opacity: .5;
-    }
-    .barra-nav__item--activo { color: var(--color-marca); }
-    .barra-nav__item--activo .barra-nav__icono { opacity: 1; }
-    .barra-nav__item--activo::before {
-      content: ""; position: absolute; top: 0; left: 35%; right: 35%;
-      height: 3px; border-radius: 0 0 3px 3px; background: var(--color-marca);
-    }
-    .barra-nav__item:focus-visible { outline: 2px solid var(--color-marca); outline-offset: -2px; }
     }
   </style>
 </head>
-<body class="tema-oscuro app pantalla-liberaciones">
+<body class="tema-oscuro app pantalla-liberaciones con-nav-inferior">
 
   <header class="barra">
     <h1 class="barra__titulo">Liberaciones Activas</h1>
@@ -117,37 +91,12 @@
     </div>
   </div>
 
-    <nav class="barra-nav" aria-label="Navegación principal">
-    <a class="barra-nav__item" id="nav-patrullaje" href="patrullaje-consulta.html">
-      <span class="barra-nav__icono" aria-hidden="true"></span>
-      <span>Patrullaje</span>
-    </a>
-    <a class="barra-nav__item" href="nidos.html">
-      <span class="barra-nav__icono" aria-hidden="true"></span>
-      <span>Nidos</span>
-    </a>
-    <a class="barra-nav__item barra-nav__item--activo" href="liberaciones.html" aria-current="page">
-      <span class="barra-nav__icono" aria-hidden="true"></span>
-      <span>Liberaciones</span>
-    </a>
-  </nav>
+  <nav class="nav-inferior" data-activa="liberaciones"></nav>
 
   <script type="module">
-    import { supabase } from './scripts/supabase.js';
-
-    const estadoSync = document.getElementById('estado-sync');
-    const estadoSyncIcono = document.getElementById('estado-sync-icono');
-    const estadoSyncTexto = document.getElementById('estado-sync-texto');
-
-    function actualizarEstadoSincronizacion() {
-      const hayConexion = navigator.onLine;
-      estadoSync.classList.toggle('estado-sync--sin-conexion', !hayConexion);
-      estadoSyncTexto.textContent = hayConexion ? 'Sincronizado' : 'Sin conexión';
-    }
-
-    window.addEventListener('online', actualizarEstadoSincronizacion);
-    window.addEventListener('offline', actualizarEstadoSincronizacion);
-    actualizarEstadoSincronizacion();
+    // Cliente único de la app (config.js + vendor/supabase.js); el indicador de conexión
+    // de la barra y la guarda de sesión los pone app.js.
+    import { supabase } from '/js/supabase.js';
 
     const lista = document.getElementById('lista-liberaciones');
     const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -188,7 +137,7 @@
       lista.removeAttribute('aria-busy');
       lista.innerHTML = `
         <div class="estado-vacio">
-          <div class="estado-vacio__icono" aria-hidden="true"><img src="src/icons/tortuga.png" alt="" width="48" height="48"></div>
+          <div class="estado-vacio__icono" aria-hidden="true"><img src="/icons/tortuga_logo.png" alt="" width="48" height="48"></div>
           <p class="estado-vacio__titulo">Todavía no hay liberaciones registradas</p>
           <p class="estado-vacio__texto">Cuando registres la primera, aparecerá aquí con su especie, su sitio y su estado de sincronización.</p>
         </div>`;
@@ -292,10 +241,6 @@
     }
 
     cargarLiberaciones();
-
-    const sesion = JSON.parse(localStorage.getItem('nido_usuario') || 'null');
-    document.getElementById('nav-patrullaje').href =
-    sesion?.rol === 'voluntario' ? 'patrullaje-captura.html' : 'patrullaje-consulta.html';
   </script>
 </body>
 </html>

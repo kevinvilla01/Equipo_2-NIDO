@@ -71,7 +71,7 @@ const PESTANAS = [
     icono: '<circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/>',
   },
   {
-    id: 'liberaciones', texto: 'Liberaciones', href: null,
+    id: 'liberaciones', texto: 'Liberaciones', href: '/liberaciones.html',
     icono: '<path d="M12 3c3 3.5 6 6.8 6 10.5A6 6 0 0 1 6 13.5C6 9.8 9 6.5 12 3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
   },
 ];
