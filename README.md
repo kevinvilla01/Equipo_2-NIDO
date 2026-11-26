@@ -58,7 +58,7 @@ Se despliega automáticamente con cada push a `main` mediante el workflow [Deplo
      - Vuelve a desplegar `main` (*Actions → Deploy → Run workflow*). `dist/config.js` se genera en el build y hasta entonces producción sigue con la llave vieja.
      - Edge Functions: Supabase les inyecta `SUPABASE_SERVICE_ROLE_KEY` y `SUPABASE_ANON_KEY`, así que no hay nada que configurar. Si ya estaba desplegada, vuelve a desplegarla y prueba que responda.
      - La service_role nueva solo va en tu terminal para el paso 2.
-1. SQL Editor: `20261116000000_auth_1_ligar_usuarios.sql` y `20261116000050_auth_1b_directorio_activo.sql`.
+1. SQL Editor, en este orden: `20261116000000_auth_1_ligar_usuarios.sql`, `20261116000050_auth_1b_directorio_activo.sql` y `20261116000075_auth_1c_password_opcional.sql`. Sin la 1c, dar de alta un voluntario falla porque `password` era `NOT NULL`.
 2. En local, con la **service_role** solo en tu terminal (nunca en el repo, en `.env.local` ni en Vercel):
    ```bash
    export SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=…
@@ -75,6 +75,20 @@ Se despliega automáticamente con cada push a `main` mediante el workflow [Deplo
 4. Desplegar el frontend (merge a `main`).
 5. SQL Editor: `20261116000100_auth_2_cerrar_usuarios.sql`. Se aborta si algún usuario activo quedó sin cuenta.
 6. SQL Editor: `20261116000200_auth_3_politicas_tablas.sql`.
+
+### Cuentas huérfanas
+
+Si `usuarios-admin` crea una cuenta de Auth y después falla el paso en la base, la función borra la cuenta. Si ese borrado también falla, la cuenta queda **huérfana** y el log de la función (*Edge Functions → usuarios-admin → Logs*) muestra `CUENTA HUÉRFANA auth_id=…`. Una cuenta huérfana no puede usar la app, pero sí ocupa el correo: con ella, volver a dar de alta a esa persona falla con "Ya existe una cuenta con ese correo". Para encontrarlas (SQL Editor):
+
+```sql
+select u.id, u.email, u.created_at
+  from auth.users u
+  left join public.usuarios p on p.auth_id = u.id
+ where p.id is null
+ order by u.created_at desc;
+```
+
+Se borran en *Authentication → Users*.
 
 ## Permisos
 
@@ -125,6 +139,7 @@ Los cambios al esquema de Supabase viven en `supabase/migrations/` y se corren *
 | `20261110000000_hu10_reubicar_nido.sql` | HU-10 | `fecha_reubicacion`, `UNIQUE (clave)`, CHECKs de estado, trigger de la máquina de estados y RPC `reubicar_nido`. |
 | `20261116000000_auth_1_ligar_usuarios.sql` | Auth | `usuarios.auth_id`, `es_coordinador()`, `usuario_actual_id()`, vista `directorio_usuarios`. |
 | `20261116000050_auth_1b_directorio_activo.sql` | Auth | `directorio_usuarios` con inactivos y columna `activo`. |
+| `20261116000075_auth_1c_password_opcional.sql` | Auth | Quita el `NOT NULL` de `usuarios.password` para que la Edge Function pueda dar altas. |
 | `20261116000100_auth_2_cerrar_usuarios.sql` | Auth | RLS de `usuarios`, trigger `usuarios_proteger`, borra `usuarios.password`. |
 | `20261116000200_auth_3_politicas_tablas.sql` | Auth | Políticas y GRANTs del resto de tablas, `patrullajes.creado_por`, default privileges. |
 
