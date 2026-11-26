@@ -108,7 +108,7 @@ Lo que cada rol puede hacer en el servidor (RLS + GRANTs, migración `auth_3`). 
 | `usuarios` | La propia fila; el coordinador, todas | Nadie desde el cliente (Edge Function `usuarios-admin`) |
 | `directorio_usuarios` (vista) | Todos (`id`, `nombre`, `activo`) | — |
 | `especies`, `tramos` | Todos | Solo el coordinador |
-| `nidos` | Todos | Nadie directo; solo RPC (`reubicar_nido`) |
+| `nidos` | Todos | Nadie directo; solo RPC: `reubicar_nido` y `marcar_nido_perdido` (esta, solo el coordinador) |
 | `liberaciones` | Todos | Insertar, solo a nombre propio (`responsable_id`) |
 | `patrullajes` | Todos | Insertar (el servidor llena `creado_por`); editar y borrar: quien lo creó, un voluntario asignado o el coordinador |
 | `patrullaje_voluntario` | Todos | Asignar y quitar: quien puede editar ese patrullaje |
@@ -152,6 +152,8 @@ Funciones para políticas y RPC: `public.es_coordinador()` y `public.usuario_act
 | `npm run build` | Copia `src/` a `dist/` y genera `dist/config.js` (necesita las variables de entorno). |
 | `npm run lint` | Revisa la sintaxis de todo el JavaScript con `node --check`, incluidos los `<script type="module">` de los `.html`. Sin dependencias. |
 | `npm test` | Pruebas unitarias con `node --test` (carpeta `tests/`). |
+| `bash scripts/probar-permisos.sh` | Permisos contra Supabase con curl (RLS de `usuarios`, `usuarios-admin`, CORS). Usa `.env.pruebas`. |
+| `bash scripts/probar-perdida.sh` | HU-12 contra Supabase con curl. Necesita un nido de prueba y lo deja perdido; el SQL para crearlo y limpiarlo está en la cabecera del script. |
 
 ## Migraciones de base de datos
 
@@ -165,6 +167,7 @@ Los cambios al esquema de Supabase viven en `supabase/migrations/` y se corren *
 | `20261116000075_auth_1c_password_opcional.sql` | Auth | Quita el `NOT NULL` de `usuarios.password` para que la Edge Function pueda dar altas. |
 | `20261116000100_auth_2_cerrar_usuarios.sql` | Auth | RLS de `usuarios`, trigger `usuarios_proteger`, borra `usuarios.password`. |
 | `20261116000200_auth_3_politicas_tablas.sql` | Auth | Políticas y GRANTs del resto de tablas, `patrullajes.creado_por`, default privileges. |
+| `20261126000000_hu12_nido_perdido.sql` | HU-12 | `fecha_perdida`, `perdido_por`, CHECKs de causa, trigger con `eclosionado → perdido` y nido perdido cerrado (NE005), RPC `marcar_nido_perdido`. Va después de las de Auth. |
 
 Las de Auth se corren en un orden fijo, intercaladas con el script de cuentas y el despliegue: ver [Despliegue del cambio](#despliegue-del-cambio-una-sola-vez-en-este-orden).
 
@@ -172,14 +175,25 @@ Las de Auth se corren en un orden fijo, intercaladas con el script de cuentas y 
 
 ```
 registrado ──► en_corral ──► eclosionado
-     │             │
-     └──► perdido ◄┘
+     │             │              │
+     └────────► perdido ◄─────────┘
 ```
 
-`eclosionado` y `perdido` son finales. La tabla de transiciones está en dos lugares que deben coincidir:
+`perdido` es final: el nido queda **cerrado** y el servidor rechaza cualquier cambio o borrado (`NE005`), venga de donde venga. La tabla de transiciones está en dos lugares que deben coincidir:
 
 - **Cliente:** `src/js/estados-nido.js` (`TRANSICIONES`, probado en `tests/estados-nido.test.js`).
-- **Servidor:** trigger `nidos_validar_transicion` sobre `public.nidos`. Valida **cualquier** escritura (REST, RPC, SQL Editor, `service_role`): un nido solo puede insertarse como `registrado` y solo cambia de estado por una transición permitida. Al pasar a `en_corral` el servidor recalcula `fecha_estimada_eclosion = fecha_reubicacion + especies.dias_incubacion_estimados` e ignora la que mande el cliente.
+- **Servidor:** trigger `nidos_validar_transicion` sobre `public.nidos`. Valida **cualquier** escritura (REST, RPC, SQL Editor, `service_role`): un nido solo puede insertarse como `registrado` y solo cambia de estado por una transición permitida. Al pasar a `en_corral` el servidor recalcula `fecha_estimada_eclosion = fecha_reubicacion + especies.dias_incubacion_estimados` e ignora la que mande el cliente. Al pasar a `perdido` exige `causa_perdida` y `fecha_perdida`.
+
+Códigos de error del servidor (PostgREST los devuelve como HTTP 400 con `error.code`):
+
+| `error.code` | Significa |
+|---|---|
+| `NE001` | No existe un nido con esa clave (aún no se sube; HU-16). |
+| `NE002` | Transición no permitida. |
+| `NE003` | Datos inválidos (corral, huevos, causa, fechas). |
+| `NE004` | La especie del nido no tiene días de incubación. |
+| `NE005` | El nido está perdido: ya no se puede modificar. |
+| `NE006` | Solo el coordinador puede hacer esto. |
 
 ### RPC `reubicar_nido` (contrato para HU-16)
 
@@ -205,6 +219,7 @@ Es **idempotente**: si el nido ya está en corral con el mismo corral, los mismo
 |---|---|
 | `NE001` | No existe un nido con esa clave (falta el upsert previo). |
 | `NE002` | Transición no permitida: el nido no está `registrado`, o ya está en corral **con otros datos**. |
+| `NE005` | El nido está perdido. |
 | `NE003` | Datos inválidos: falta el corral, huevos ≤ 0 o nulos, fecha nula, futura o anterior al hallazgo. |
 | `NE004` | La especie del nido no tiene días de incubación. |
 | `22P02` | Tipo inválido (por ejemplo, huevos = `2.5`); lo rechaza PostgREST antes de entrar a la función. |
@@ -213,4 +228,28 @@ Con cualquier rechazo, HU-16 debe marcar el nido como **conflicto** en IndexedDB
 
 **Error de red** (sin respuesta del servidor: `error.message` tipo `Failed to fetch`, sin `error.code`, o HTTP 5xx/408/429): el nido sigue con `pendiente_envio: true` y se reintenta en la siguiente sincronización.
 
-> Seguridad: la función es `SECURITY DEFINER` porque RLS no permite `UPDATE` a `anon`, y una política de `UPDATE` abriría todas las columnas. Dentro valida todos los parámetros, usa `search_path` vacío y bloquea la fila con `FOR UPDATE`; el trigger vuelve a validar la transición. Cuando la app use Supabase Auth, aquí habrá que revisar también el rol de quien llama.
+> Seguridad: la función es `SECURITY DEFINER` porque RLS no permite `UPDATE` a `anon`, y una política de `UPDATE` abriría todas las columnas. Dentro valida todos los parámetros, usa `search_path` vacío y bloquea la fila con `FOR UPDATE`; el trigger vuelve a validar la transición. Cualquier usuario con sesión puede reubicar; la restricción por rol solo aplica a `marcar_nido_perdido`.
+
+### RPC `marcar_nido_perdido` (HU-12)
+
+Solo el **coordinador**. El servidor lo comprueba con `es_coordinador()`, que lee `usuarios` por `auth.uid()` del JWT; nada de lo que mande el cliente cuenta. Un voluntario que llame a la API directo recibe `NE006`.
+
+```js
+const { data, error } = await supabase.rpc('marcar_nido_perdido', {
+  p_clave: nido.clave,              // text
+  p_causa: 'marea',                 // 'depredacion' | 'saqueo' | 'marea' | 'inviable'
+  p_fecha_perdida: '2026-11-26',    // 'YYYY-MM-DD', fecha local del teléfono
+});
+```
+
+- Desde `registrado`, `en_corral` o `eclosionado`. Llena `estado = 'perdido'`, `causa_perdida`, `fecha_perdida` y `perdido_por` (el `usuarios.id` del coordinador, lo pone el servidor).
+- **Idempotente:** si el nido ya está perdido con la misma causa, devuelve la fila sin cambios. Con otra causa responde `NE005`.
+- Rechazos: `NE001`, `NE003` (causa fuera del catálogo, fecha futura o anterior al hallazgo), `NE005`, `NE006`. `anon` no puede ejecutarla.
+
+**Sin señal (cola de pérdidas).** `marcar-perdido.html` guarda el nido como perdido y la pérdida en el store `perdidas_pendientes` de IndexedDB en una sola transacción. `src/js/cola-perdidas.js` las envía cuando `asegurarSesion()` da sesión vigente: al abrir cualquier pantalla y con el evento `nido:sesion-vigente` (al volver la señal), y solo con sesión de coordinador.
+
+| Respuesta | Qué pasa con la pérdida |
+|---|---|
+| Éxito | Sale de la cola; el nido deja de mostrarse como "pendiente de envío". |
+| `NE002`–`NE006`, `22P02` | Sale de la cola y el nido queda con `conflicto: { codigo, mensaje, en }`, visible en la lista. |
+| Red, 5xx, JWT vencido, `NE001` | Se queda en la cola y se reintenta. `NE001` se resuelve cuando HU-16 suba el nido. |

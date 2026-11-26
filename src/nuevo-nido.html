@@ -77,7 +77,8 @@
     import { guardarNido, listarNidos } from '/js/db.js';
     import { cargarCatalogo, CAMPO_NOMBRE } from '/js/catalogos.js';
     import { generarUUID } from '/js/uuid.js';
-    import { ESTADOS, ETIQUETA_ESTADO, puedeTransicionar } from '/js/estados-nido.js';
+    import { CAUSAS_PERDIDA, ESTADOS, ETIQUETA_ESTADO, puedeTransicionar } from '/js/estados-nido.js';
+    import { esCoordinador } from '/js/sesion.js';
 
     const aviso = document.getElementById('aviso');
     const selectTramo = document.getElementById('tramo');
@@ -140,7 +141,10 @@
         const badges = document.createElement('span');
         badges.className = 'fila';
         const estado = document.createElement('span');
-        estado.className = nido.estado === ESTADOS.EN_CORRAL ? 'etiqueta etiqueta--proceso' : 'etiqueta';
+        estado.className = {
+          [ESTADOS.EN_CORRAL]: 'etiqueta etiqueta--proceso',
+          [ESTADOS.PERDIDO]: 'etiqueta etiqueta--cancelado',
+        }[nido.estado] ?? 'etiqueta';
         estado.textContent = ETIQUETA_ESTADO[nido.estado] ?? nido.estado;
         badges.append(estado, badge);
         fila.append(titulo, badges);
@@ -157,12 +161,34 @@
           corral.textContent = `Corral ${nido.corral} · ${nido.huevos_contados} huevos · eclosión estimada ${eclosion}`;
           item.append(corral);
         }
+        if (nido.estado === ESTADOS.PERDIDO) {
+          const perdida = document.createElement('div');
+          perdida.className = 'tarjeta__texto mb-0 mt-3';
+          const causa = CAUSAS_PERDIDA[nido.causa_perdida] ?? nido.causa_perdida;
+          const fecha = nido.fecha_perdida ? formatearFecha(nido.fecha_perdida) : '—';
+          perdida.textContent = `Perdido por ${causa} · ${fecha}${nido.perdida_pendiente ? ' · pérdida pendiente de envío' : ''}`;
+          item.append(perdida);
+        }
+        if (nido.conflicto) {
+          const conflicto = document.createElement('div');
+          conflicto.className = 'tarjeta__texto texto-conflicto mb-0 mt-3';
+          conflicto.textContent = `El servidor rechazó la pérdida (${nido.conflicto.codigo}): ${nido.conflicto.mensaje}`;
+          item.append(conflicto);
+        }
         if (puedeTransicionar(nido.estado, ESTADOS.EN_CORRAL)) {
           const reubicar = document.createElement('a');
           reubicar.className = 'btn btn--secundario btn--pequeno mt-3';
           reubicar.href = `/reubicar-nido.html?clave=${encodeURIComponent(nido.clave)}`;
           reubicar.textContent = 'Reubicar al corral';
           item.append(reubicar);
+        }
+        // Solo el coordinador; el servidor también lo exige (NE006).
+        if (esCoordinador() && puedeTransicionar(nido.estado, ESTADOS.PERDIDO)) {
+          const perdido = document.createElement('a');
+          perdido.className = 'btn btn--fantasma btn--pequeno mt-3';
+          perdido.href = `/marcar-perdido.html?clave=${encodeURIComponent(nido.clave)}`;
+          perdido.textContent = 'Marcar como perdido';
+          item.append(perdido);
         }
         return item;
       }));
@@ -222,10 +248,17 @@
 
     // Aviso que deja reubicar-nido.html al volver; se quita de la URL para no repetirlo al recargar.
     const parametros = new URLSearchParams(window.location.search);
-    if (parametros.get('aviso') === 'reubicado') {
-      mostrarAviso('Nido reubicado al corral en el teléfono. Queda pendiente de envío.', 'exito');
+    const AVISOS = {
+      reubicado: 'Nido reubicado al corral en el teléfono. Queda pendiente de envío.',
+      perdido: 'Nido marcado como perdido. Si no había señal, se envía al volver.',
+    };
+    if (Object.hasOwn(AVISOS, parametros.get('aviso'))) {
+      mostrarAviso(AVISOS[parametros.get('aviso')], 'exito');
       history.replaceState(null, '', window.location.pathname);
     }
+
+    // La cola de pérdidas (app.js) avisa cuando envió o rechazó alguna.
+    window.addEventListener('nido:perdidas-actualizadas', () => pintarLista());
   </script>
 </body>
 </html>

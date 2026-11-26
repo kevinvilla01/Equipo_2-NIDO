@@ -1,5 +1,5 @@
 // Máquina de estados del nido. Espejo de nidos_validar_transicion() en
-// supabase/migrations/20261110000000_hu10_reubicar_nido.sql: si cambias una, cambia la otra.
+// supabase/migrations/20261126000000_hu12_nido_perdido.sql: si cambias una, cambia la otra.
 // Módulo puro (sin DOM ni IndexedDB) para poder probarlo con `node --test`.
 
 export const ESTADOS = Object.freeze({
@@ -16,12 +16,20 @@ export const ETIQUETA_ESTADO = Object.freeze({
   perdido: 'Perdido',
 });
 
-// Estado actual → estados a los que puede pasar. eclosionado y perdido son finales.
+// Estado actual → estados a los que puede pasar. perdido es final: el nido queda cerrado.
 export const TRANSICIONES = Object.freeze({
   registrado: Object.freeze(['en_corral', 'perdido']),
   en_corral: Object.freeze(['eclosionado', 'perdido']),
-  eclosionado: Object.freeze([]),
+  eclosionado: Object.freeze(['perdido']),
   perdido: Object.freeze([]),
+});
+
+// Causas de pérdida: mismos valores que el CHECK nidos_causa_perdida_valida.
+export const CAUSAS_PERDIDA = Object.freeze({
+  depredacion: 'Depredación',
+  saqueo: 'Saqueo',
+  marea: 'Marea',
+  inviable: 'Inviable',
 });
 
 export function puedeTransicionar(desde, hacia) {
@@ -58,6 +66,26 @@ export function validarPasoACorral(nido, datos) {
     };
   }
   return validarReubicacion(datos);
+}
+
+// Un nido perdido no admite ningún cambio (en el servidor responde NE005).
+export function estaCerrado(nido) {
+  return nido?.estado === ESTADOS.PERDIDO;
+}
+
+// Valida el paso a perdido: transición permitida y causa del catálogo.
+export function validarPasoAPerdido(nido, { causa }) {
+  if (estaCerrado(nido)) {
+    return { valido: false, errores: { estado: 'Este nido ya está perdido y no se puede modificar.' } };
+  }
+  if (!puedeTransicionar(nido?.estado, ESTADOS.PERDIDO)) {
+    const actual = ETIQUETA_ESTADO[nido?.estado] ?? nido?.estado;
+    return { valido: false, errores: { estado: `No se puede marcar como perdido un nido "${actual}".` } };
+  }
+  if (!Object.hasOwn(CAUSAS_PERDIDA, causa)) {
+    return { valido: false, errores: { causa: 'Elige la causa de la pérdida.' } };
+  }
+  return { valido: true, datos: { causa } };
 }
 
 // Fecha 'YYYY-MM-DD' + días. Se calcula en UTC para que el cambio de horario no

@@ -2,6 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   puedeTransicionar,
+  CAUSAS_PERDIDA,
+  estaCerrado,
+  validarPasoAPerdido,
   validarReubicacion,
   validarPasoACorral,
   calcularFechaEstimada,
@@ -18,7 +21,7 @@ test('solo se llega a en_corral desde registrado', () => {
 });
 
 test('estados finales y desconocidos no transicionan', () => {
-  assert.equal(puedeTransicionar('eclosionado', 'perdido'), false);
+  assert.equal(puedeTransicionar('eclosionado', 'registrado'), false);
   assert.equal(puedeTransicionar('perdido', 'registrado'), false);
   assert.equal(puedeTransicionar('inventado', 'en_corral'), false);
   assert.equal(puedeTransicionar('toString', 'en_corral'), false);
@@ -94,4 +97,42 @@ test('fecha de reubicación inválida no da fecha estimada', () => {
   for (const fecha of ['', null, '10/11/2026', '2026-02-30', '2026-13-01']) {
     assert.equal(calcularFechaEstimada(fecha, 60), null, String(fecha));
   }
+});
+
+// HU-12 · Nido perdido
+
+test('se puede marcar perdido desde registrado, en corral o eclosionado', () => {
+  for (const desde of ['registrado', 'en_corral', 'eclosionado']) {
+    assert.equal(puedeTransicionar(desde, 'perdido'), true, desde);
+    assert.equal(validarPasoAPerdido({ estado: desde }, { causa: 'marea' }).valido, true, desde);
+  }
+});
+
+test('un nido perdido ya no cambia de estado', () => {
+  for (const hacia of ['registrado', 'en_corral', 'eclosionado', 'perdido']) {
+    assert.equal(puedeTransicionar('perdido', hacia), false, hacia);
+  }
+  assert.equal(estaCerrado({ estado: 'perdido' }), true);
+  assert.equal(estaCerrado({ estado: 'eclosionado' }), false);
+  const resultado = validarPasoAPerdido({ estado: 'perdido' }, { causa: 'saqueo' });
+  assert.equal(resultado.valido, false);
+  assert.ok(resultado.errores.estado);
+});
+
+test('marcar perdido exige una causa del catálogo', () => {
+  assert.deepEqual(Object.keys(CAUSAS_PERDIDA).sort(), ['depredacion', 'inviable', 'marea', 'saqueo']);
+  for (const causa of ['depredacion', 'saqueo', 'marea', 'inviable']) {
+    assert.deepEqual(validarPasoAPerdido({ estado: 'registrado' }, { causa }), { valido: true, datos: { causa } });
+  }
+  for (const causa of ['', undefined, null, 'tormenta', 'Depredacion', 'toString', '__proto__']) {
+    const resultado = validarPasoAPerdido({ estado: 'registrado' }, { causa });
+    assert.equal(resultado.valido, false, String(causa));
+    assert.ok(resultado.errores.causa, String(causa));
+  }
+});
+
+test('reubicar sigue siendo solo desde registrado (perdido incluido)', () => {
+  const resultado = validarPasoACorral({ estado: 'perdido' }, { corral: 'C-1', huevos: 10 });
+  assert.equal(resultado.valido, false);
+  assert.ok(resultado.errores.estado);
 });
