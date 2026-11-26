@@ -33,6 +33,7 @@
 
     .informe-seccion { padding: var(--e-4) 0; }
     .informe-seccion__titulo { margin: 0 0 var(--e-2); font-size: var(--t-lg); font-weight: 600; }
+    .informe-seccion__subtitulo { margin: var(--e-4) 0 var(--e-2); font-size: var(--t-base); font-weight: 600; }
 
     .tabla-cruzada th, .tabla-cruzada td { white-space: nowrap; }
     .tabla-cruzada tfoot td, .tabla-cruzada .total-col { font-weight: 700; }
@@ -118,6 +119,10 @@
       <div class="tabla-scroll">
         <table class="tabla" id="tabla-causas"></table>
       </div>
+      <h3 class="informe-seccion__subtitulo">Detalle de nidos perdidos</h3>
+      <div class="tabla-scroll">
+        <table class="tabla" id="tabla-perdidos"></table>
+      </div>
     </section>
 
     <section class="informe-seccion oculto" id="seccion-verificacion">
@@ -126,31 +131,33 @@
     </section>
 
     <div class="estado-vacio oculto" id="estado-vacio">
-      <div class="estado-vacio__icono" aria-hidden="true"><img src="src/icons/tortuga.png" alt="" width="48" height="48"></div>
+      <div class="estado-vacio__icono" aria-hidden="true"><img src="/icons/tortuga_logo.png" alt="" width="48" height="48"></div>
       <p class="estado-vacio__titulo">No hay nidos capturados en este rango</p>
       <p class="estado-vacio__texto">Prueba con otras fechas.</p>
     </div>
   </div>
 
   <script type="module">
-    import { supabase } from './scripts/supabase.js';
+    // Cliente único de la app; el indicador de conexión y la guarda de sesión los pone app.js.
+    import { supabase } from '/js/supabase.js';
+    import { CAUSAS_PERDIDA, ESTADOS } from '/js/estados-nido.js';
 
-    const estadoSync = document.getElementById('estado-sync');
-    const estadoSyncIcono = document.getElementById('estado-sync-icono');
-    const estadoSyncTexto = document.getElementById('estado-sync-texto');
+    const ESTADO_PERDIDO = ESTADOS.PERDIDO;
+    const SIN_CAUSA = 'Sin causa registrada';
 
-    function actualizarEstadoSincronizacion() {
-      const hayConexion = navigator.onLine;
-      estadoSync.classList.toggle('estado-sync--sin-conexion', !hayConexion);
-      estadoSyncTexto.textContent = hayConexion ? 'Sincronizado' : 'Sin conexión';
+    // 'marea' → 'Marea'; un valor fuera del catálogo se muestra tal cual.
+    function textoCausa(causa) {
+      const valor = causa?.trim();
+      if (!valor) return SIN_CAUSA;
+      return CAUSAS_PERDIDA[valor] ?? valor;
     }
 
-    window.addEventListener('online', actualizarEstadoSincronizacion);
-    window.addEventListener('offline', actualizarEstadoSincronizacion);
-    actualizarEstadoSincronizacion();
-
-    const ESTADO_PERDIDO = 'perdido';
-    const SIN_CAUSA = 'Sin causa registrada';
+    // 'YYYY-MM-DD' → 'DD/MM/AAAA' sin pasar por Date (evita el desfase de zona horaria).
+    function formatearFecha(fecha) {
+      if (!fecha) return '—';
+      const [anio, mes, dia] = fecha.split('-');
+      return `${dia}/${mes}/${anio}`;
+    }
 
     const form = document.getElementById('form-filtros');
     const inputDesde = document.getElementById('desde');
@@ -164,6 +171,7 @@
     const selectMetrica = document.getElementById('metrica');
     const tablaCruzada = document.getElementById('tabla-cruzada');
     const tablaCausas = document.getElementById('tabla-causas');
+    const tablaPerdidos = document.getElementById('tabla-perdidos');
     const verificacion = document.getElementById('verificacion');
 
     const formatoEntero = new Intl.NumberFormat('es-MX');
@@ -250,7 +258,7 @@
       const [nidosRes, liberRes, especiesRes, tramosRes] = await Promise.all([
         supabase
           .from('nidos')
-          .select('id, especie_id, tramo_id, huevos_contados, crias_vivas, estado, causa_perdida')
+          .select('id, clave, especie_id, tramo_id, huevos_contados, crias_vivas, estado, causa_perdida, fecha_perdida')
           .gte('fecha_hallazgo', desde)
           .lte('fecha_hallazgo', hasta),
         supabase
@@ -284,7 +292,7 @@
       if (faltantes.length > 0) {
         const { data: extra, error: errorExtra } = await supabase
           .from('nidos')
-          .select('id, especie_id, tramo_id, huevos_contados, crias_vivas, estado, causa_perdida')
+          .select('id, clave, especie_id, tramo_id, huevos_contados, crias_vivas, estado, causa_perdida, fecha_perdida')
           .in('id', faltantes);
         if (errorExtra) {
           console.error('Error de Supabase al leer nidos de liberaciones:', errorExtra);
@@ -301,6 +309,7 @@
     function calcular(nidosEnRango, liberaciones, nidoPorId, especies, tramos) {
       const celdas = new Map();
       const causas = new Map();
+      const perdidos = [];
       let sinEspecieOTramo = 0;
       let liberadasSinAsignar = 0;
 
@@ -313,6 +322,7 @@
       };
 
       nidosEnRango.forEach((nido) => {
+        if (nido.estado === ESTADO_PERDIDO) perdidos.push(nido);
         if (nido.especie_id == null || nido.tramo_id == null) {
           sinEspecieOTramo++;
           return;
@@ -322,7 +332,7 @@
 
         if (nido.estado === ESTADO_PERDIDO) {
           a.perdidos++;
-          const causa = nido.causa_perdida?.trim() || SIN_CAUSA;
+          const causa = textoCausa(nido.causa_perdida);
           causas.set(causa, (causas.get(causa) || 0) + 1);
         } else {
           a.huevos += nido.huevos_contados ?? 0;
@@ -349,7 +359,7 @@
         [...celdas.values()].some((c) => c.tramoId === t.id));
 
       return {
-        celdas, causas, sinEspecieOTramo, liberadasSinAsignar,
+        celdas, causas, perdidos, sinEspecieOTramo, liberadasSinAsignar,
         totalNidos: nidosEnRango.length,
         especiesUsadas, tramosUsados, nombreEspecie, nombreTramo
       };
@@ -446,6 +456,25 @@
         <thead><tr><th scope="col">Causa</th><th scope="col" class="num">Nidos</th></tr></thead>
         <tbody>${filas || '<tr><td colspan="2">Ningún nido perdido en este rango.</td></tr>'}</tbody>
         <tfoot><tr><th scope="row">Total</th><td class="num">${formatoEntero.format(totalPerdidos)}</td></tr></tfoot>`;
+
+      // Detalle: cada nido perdido con su causa (HU-12), el más reciente primero.
+      const detalle = [...r.perdidos]
+        .sort((a, b) => (b.fecha_perdida ?? '').localeCompare(a.fecha_perdida ?? ''))
+        .map((nido) => `
+          <tr>
+            <td>${escaparHTML(nido.clave ?? '—')}</td>
+            <td>${escaparHTML(r.nombreEspecie.get(nido.especie_id) ?? '—')}</td>
+            <td>${escaparHTML(r.nombreTramo.get(nido.tramo_id) ?? '—')}</td>
+            <td>${escaparHTML(textoCausa(nido.causa_perdida))}</td>
+            <td>${escaparHTML(formatearFecha(nido.fecha_perdida))}</td>
+          </tr>`)
+        .join('');
+      tablaPerdidos.innerHTML = `
+        <thead><tr>
+          <th scope="col">Nido</th><th scope="col">Especie</th><th scope="col">Tramo</th>
+          <th scope="col">Causa</th><th scope="col">Fecha de pérdida</th>
+        </tr></thead>
+        <tbody>${detalle || '<tr><td colspan="5">Ningún nido perdido en este rango.</td></tr>'}</tbody>`;
     }
 
     function renderizarVerificacion() {

@@ -100,21 +100,9 @@
   </div>
 
   <script type="module">
-        import { supabase } from './scripts/supabase.js';
-
-    const estadoSync = document.getElementById('estado-sync');
-    const estadoSyncIcono = document.getElementById('estado-sync-icono');
-    const estadoSyncTexto = document.getElementById('estado-sync-texto');
-
-    function actualizarEstadoSincronizacion() {
-      const hayConexion = navigator.onLine;
-      estadoSync.classList.toggle('estado-sync--sin-conexion', !hayConexion);
-      estadoSyncTexto.textContent = hayConexion ? 'Sincronizado' : 'Sin conexión';
-    }
-
-    window.addEventListener('online', actualizarEstadoSincronizacion);
-    window.addEventListener('offline', actualizarEstadoSincronizacion);
-    actualizarEstadoSincronizacion();
+    // Cliente único de la app; el indicador de conexión y la guarda de sesión los pone app.js.
+    import { supabase } from '/js/supabase.js';
+    import { leerPerfil } from '/js/sesion.js';
 
     const ESTADO_ECLOSIONADO = 'eclosionado';
 
@@ -167,14 +155,9 @@
     inputFecha.value = hoyLocal();
     inputFecha.min = hoyLocal();
 
-    function leerSesion() {
-      try {
-        return JSON.parse(localStorage.getItem('nido_usuario'));
-      } catch {
-        return null;
-      }
-    }
-    const sesion = leerSesion();
+    // Perfil de la sesión de Supabase Auth (app.js lo valida contra el servidor por auth_id).
+    // El servidor solo acepta responsable_id = el usuario de la sesión (auth_3).
+    const sesion = leerPerfil();
 
     let nidosDisponibles = [];
 
@@ -322,7 +305,7 @@
         if (error.code === 'P0001') {
           mostrarAviso(error.message);
         } else if (error.code === '42501') {
-          mostrarAviso('La base de datos no permite registrar liberaciones (falta la política de INSERT en liberaciones).');
+          mostrarAviso('El servidor no aceptó la liberación a tu nombre. Cierra sesión, vuelve a entrar e intenta de nuevo.');
         } else {
           mostrarAviso('No se pudo registrar. Revisa tu conexión e intenta de nuevo.');
         }
