@@ -9,6 +9,14 @@ const limpiarEl = document.getElementById('limpiar-filtros');
 
 let completados = [];
 
+// Texto de la base de datos (nombres, observaciones) dentro de plantillas HTML:
+// se escapa para que no se interprete como HTML.
+function escaparHTML(texto) {
+  return String(texto ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[c]);
+}
+
 
 function formatFecha(fechaStr) {
   const fecha = new Date(fechaStr + 'T00:00:00');
@@ -86,11 +94,11 @@ const Voluntarios = (patrullaje_voluntario ?? [])
           <span class="${badgeClase}"><span class="dot"></span>${badgeTexto}</span>
         </div>
         <dl class="details">
-          <div><dt>Tramo</dt><dd>${nombreTramo}</dd></div>
+          <div><dt>Tramo</dt><dd>${escaparHTML(nombreTramo)}</dd></div>
           <div><dt>Hora de inicio</dt><dd>${hora_inicio.slice(0, 5)}</dd></div>
           <div><dt>Hora de fin</dt><dd>${finTexto}</dd></div>
-          <div><dt>Observaciones</dt><dd>${obsTexto}</dd></div>
-          <div><dt>Voluntarios</dt><dd>${Voluntarios}</dd></div>
+          <div><dt>Observaciones</dt><dd>${escaparHTML(obsTexto)}</dd></div>
+          <div><dt>Voluntarios</dt><dd>${escaparHTML(Voluntarios)}</dd></div>
 
         </dl>
         <hr>
