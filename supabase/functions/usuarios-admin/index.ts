@@ -166,6 +166,28 @@ async function leerUsuario(id: number): Promise<Usuario> {
   return data as Usuario;
 }
 
+// ---- Reversiones y errores de BD -----------------------------------------------
+
+// Borra una cuenta de Auth recién creada cuyo paso en la BD falló. Si el borrado también
+// falla, la cuenta queda huérfana (sin fila en usuarios): se registra con su id para
+// poder borrarla a mano (consulta en el README, "Cuentas huérfanas"). Una huérfana no
+// puede usar la app: sin fila, iniciarSesion() la saca y es_coordinador() es false.
+async function revertirCuenta(authId: string, motivo: string) {
+  const { error } = await admin.auth.admin.deleteUser(authId);
+  if (error) {
+    console.error(`CUENTA HUÉRFANA auth_id=${authId}: no se pudo revertir (${motivo}): ${error.message}`);
+  } else {
+    console.warn(`Cuenta ${authId} revertida (${motivo}).`);
+  }
+}
+
+// El detalle de Postgres va al log de la función, no al navegador.
+function errorDeBd(contexto: string, error: { code?: string; message?: string }): never {
+  console.error(`${contexto}: [${error.code}] ${error.message}`);
+  if (error.code === '23505') throw new ErrorHttp(409, 'correo_duplicado', 'Ya existe un usuario con ese correo.');
+  throw new ErrorHttp(500, 'error_bd', 'No se pudo guardar en la base de datos. Avisa al equipo.');
+}
+
 // ---- Acciones ------------------------------------------------------------------
 
 async function crear(body: Record<string, unknown>) {
@@ -186,9 +208,8 @@ async function crear(body: Record<string, unknown>) {
     .single();
   if (errorFila) {
     // Sin fila en usuarios la cuenta no sirve: se deshace para no dejar huérfanas.
-    await admin.auth.admin.deleteUser(creado.user.id);
-    if (errorFila.code === '23505') throw new ErrorHttp(409, 'correo_duplicado', 'Ya existe un usuario con ese correo.');
-    throw new ErrorHttp(500, 'error_bd', errorFila.message);
+    await revertirCuenta(creado.user.id, 'falló el insert en usuarios');
+    errorDeBd('crear: insert en usuarios', errorFila);
   }
   return fila;
 }
@@ -241,9 +262,8 @@ async function actualizar(body: Record<string, unknown>, quien: Usuario) {
   if (Object.keys(datos).length > 0) {
     const { data, error } = await admin.from('usuarios').update(datos).eq('id', id).select(COLUMNAS).single();
     if (error) {
-      if (cuentaNueva) await admin.auth.admin.deleteUser(cuentaNueva);
-      if (error.code === '23505') throw new ErrorHttp(409, 'correo_duplicado', 'Ya existe un usuario con ese correo.');
-      throw new ErrorHttp(500, 'error_bd', error.message);
+      if (cuentaNueva) await revertirCuenta(cuentaNueva, 'falló el update en usuarios');
+      errorDeBd('actualizar: update en usuarios', error);
     }
     fila = data as Usuario;
   }
@@ -252,7 +272,11 @@ async function actualizar(body: Record<string, unknown>, quien: Usuario) {
     const { error } = await admin.auth.admin.updateUserById(actual.auth_id, cambiosAuth);
     if (error) {
       const { nombre, correo, telefono, rol, activo } = actual;
-      await admin.from('usuarios').update({ nombre, correo, telefono, rol, activo }).eq('id', id);
+      const { error: errorRevertir } = await admin
+        .from('usuarios').update({ nombre, correo, telefono, rol, activo }).eq('id', id);
+      if (errorRevertir) {
+        console.error(`DESINCRONIZADO usuario ${id}: Auth rechazó el cambio y la fila no se pudo regresar: ${errorRevertir.message}`);
+      }
       errorDeAuth(error);
     }
   }
@@ -270,9 +294,9 @@ async function eliminar(body: Record<string, unknown>, quien: Usuario) {
       throw new ErrorHttp(409, 'tiene_historial',
         'No se puede eliminar: tiene patrullajes o liberaciones registrados. Desactívalo en su lugar.');
     }
-    throw new ErrorHttp(500, 'error_bd', error.message);
+    errorDeBd('eliminar: delete en usuarios', error);
   }
-  if (actual.auth_id) await admin.auth.admin.deleteUser(actual.auth_id);
+  if (actual.auth_id) await revertirCuenta(actual.auth_id, `se eliminó el usuario ${id}`);
   return actual;
 }
 
