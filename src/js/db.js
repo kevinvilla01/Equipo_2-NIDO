@@ -1,4 +1,6 @@
 // Persistencia local en IndexedDB: nidos capturados en campo y copia de los catálogos.
+import { tienePendientes } from '/js/nidos-activos.js';
+
 const DB_NOMBRE = 'nido';
 // v2: el store de nidos pasa de keyPath 'id' a 'clave' (el id lo asigna Supabase).
 // v3: cola de pérdidas por enviar (HU-12), una por nido.
@@ -71,6 +73,29 @@ export async function marcarPerdidoLocal(nido, perdida) {
     const tx = db.transaction(['nidos', 'perdidas_pendientes'], 'readwrite');
     tx.objectStore('nidos').put(nido);
     tx.objectStore('perdidas_pendientes').put(perdida);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+
+// Aplica lo que trajo la sincronización de nidos activos (HU-13) en una sola
+// transacción: si algo falla, el teléfono se queda como estaba. Se vuelve a leer cada
+// nido dentro de la transacción: si mientras se descargaba alguien lo cambió en el
+// teléfono (reubicar, marcar perdido), gana el cambio local.
+export async function aplicarSincronizacionNidos({ guardar, borrar }) {
+  const db = await abrir();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('nidos', 'readwrite');
+    const store = tx.objectStore('nidos');
+    const conActual = (clave, accion) => {
+      const lectura = store.get(clave);
+      lectura.onsuccess = () => {
+        if (!tienePendientes(lectura.result)) accion();
+      };
+    };
+    guardar.forEach((nido) => conActual(nido.clave, () => store.put(nido)));
+    borrar.forEach((clave) => conActual(clave, () => store.delete(clave)));
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
     tx.onabort = () => reject(tx.error);

@@ -2,7 +2,7 @@
 //
 // - supabase-js guarda el JWT y el refresh token en localStorage y los manda en cada
 //   petición; RLS y las RPC identifican al usuario con auth.uid().
-// - El perfil (id, nombre, correo, rol de public.usuarios) se guarda aparte en
+// - El perfil (id, nombre, correo, rol y campamento de public.usuarios) se guarda aparte en
 //   'nido_usuario' para que la app funcione sin señal (rol para la UI, id para
 //   responsable_id). Es solo para mostrar: el servidor nunca confía en él.
 // - Nada de aquí borra IndexedDB: lo capturado sin señal sobrevive a un cierre de sesión
@@ -30,8 +30,24 @@ export function leerPerfil() {
   }
 }
 
-function guardarPerfil({ id, nombre, correo, rol }) {
-  localStorage.setItem(CLAVE_PERFIL, JSON.stringify({ id, nombre, correo, rol }));
+// campamento_id (HU-13) filtra los nidos sin señal; null si aún no corre la migración.
+function guardarPerfil({ id, nombre, correo, rol, campamento_id = null }) {
+  localStorage.setItem(CLAVE_PERFIL, JSON.stringify({ id, nombre, correo, rol, campamento_id }));
+}
+
+const COLUMNAS_PERFIL = 'id, nombre, correo, rol, activo';
+
+// Fila de public.usuarios de la sesión. Si la migración de HU-13 todavía no corre
+// (columna inexistente, 42703) se lee sin campamento_id para no romper el login.
+async function leerFilaUsuario(authId) {
+  const consulta = (columnas) => supabase
+    .from('usuarios')
+    .select(columnas)
+    .eq('auth_id', authId)
+    .maybeSingle();
+  const resultado = await consulta(`${COLUMNAS_PERFIL}, campamento_id`);
+  if (resultado.error?.code === '42703') return consulta(COLUMNAS_PERFIL);
+  return resultado;
 }
 
 function borrarPerfil() {
@@ -81,11 +97,7 @@ export async function iniciarSesion(correo, contrasena) {
     throw new ErrorSesion('credenciales', 'Correo o contraseña incorrectos.');
   }
 
-  const { data: perfil, error: errorPerfil } = await supabase
-    .from('usuarios')
-    .select('id, nombre, correo, rol, activo')
-    .eq('auth_id', data.user.id)
-    .maybeSingle();
+  const { data: perfil, error: errorPerfil } = await leerFilaUsuario(data.user.id);
 
   if (errorPerfil || !perfil || !perfil.activo) {
     await supabase.auth.signOut({ scope: 'local' });
@@ -171,11 +183,7 @@ export async function protegerPagina(acceso) {
   if (estado === 'vigente') {
     // Por auth_id de la sesión, no por el id local (localStorage se puede editar).
     const { data: { session } } = await supabase.auth.getSession();
-    const { data: actual, error } = await supabase
-      .from('usuarios')
-      .select('id, nombre, correo, rol, activo')
-      .eq('auth_id', session.user.id)
-      .maybeSingle();
+    const { data: actual, error } = await leerFilaUsuario(session.user.id);
     if (!error && (!actual || !actual.activo)) {
       await cerrarSesion();
       return null;

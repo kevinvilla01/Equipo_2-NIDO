@@ -85,7 +85,11 @@
     const boton = document.getElementById('btn-guardar');
     const inputCorral = document.getElementById('corral');
     const inputHuevos = document.getElementById('huevos');
-    const clave = new URLSearchParams(window.location.search).get('clave');
+    const parametrosUrl = new URLSearchParams(window.location.search);
+    const clave = parametrosUrl.get('clave');
+    // Se vuelve a la lista desde la que se entró (HU-13: nidos activos).
+    const DESTINO = parametrosUrl.get('desde') === 'activos' ? '/nidos-activos.html' : '/nuevo-nido.html';
+    document.querySelector('.barra__volver').href = DESTINO;
     // Fecha local: con toISOString() después de las 18:00 en México saldría el día siguiente.
     const fechaReubicacion = new Date().toLocaleDateString('en-CA');
 
@@ -197,7 +201,7 @@
       boton.disabled = true;
       try {
         await actualizarNido(reubicado);
-        window.location.href = '/nuevo-nido.html?aviso=reubicado';
+        window.location.href = `${DESTINO}?aviso=reubicado`;
       } catch (err) {
         console.error('No se pudo guardar la reubicación:', err);
         mostrarAviso('No se pudo guardar la reubicación en el teléfono. Intenta de nuevo.');

@@ -1,6 +1,7 @@
 // Shell común de todas las pantallas: sesión, service worker, estado de conexión y navegación inferior.
 import { asegurarSesion, cerrarSesion, esCoordinador, protegerPagina } from '/js/sesion.js';
 import { enviarPerdidasPendientes } from '/js/cola-perdidas.js';
+import { sincronizarNidosActivos } from '/js/sync-nidos.js';
 
 // Pérdidas de nidos marcadas sin señal (HU-12). Solo con sesión de coordinador: si en el
 // teléfono entra después un voluntario, el servidor las rechazaría (NE006) y quedarían
@@ -19,10 +20,17 @@ protegerPagina(document.body.dataset.acceso ?? 'sesion').then((perfil) => {
   document.querySelectorAll('[data-solo-coordinador]').forEach((elemento) => {
     elemento.classList.toggle('oculto', !coordinador);
   });
-  if (perfil && document.body.dataset.acceso !== 'publico') enviarPendientes();
+  if (perfil && document.body.dataset.acceso !== 'publico') {
+    enviarPendientes();
+    // Nidos activos y catálogos para el trabajo sin señal (HU-13).
+    sincronizarNidosActivos();
+  }
 });
 
-window.addEventListener('nido:sesion-vigente', enviarPendientes);
+window.addEventListener('nido:sesion-vigente', () => {
+  enviarPendientes();
+  sincronizarNidosActivos({ forzar: true });
+});
 
 document.querySelectorAll('[data-cerrar-sesion]').forEach((boton) => {
   boton.addEventListener('click', () => cerrarSesion());
@@ -67,7 +75,7 @@ const PESTANAS = [
     icono: '<path d="M12 2l8 4v6c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6l8-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
   },
   {
-    id: 'nidos', texto: 'Nidos', href: '/nuevo-nido.html',
+    id: 'nidos', texto: 'Nidos', href: '/nidos-activos.html',
     icono: '<circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/>',
   },
   {

@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nidos activos — NIDO</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/tortuga_logo.png">
+  <link rel="stylesheet" href="/css/ui.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script src="/config.js"></script>
+  <script src="/vendor/supabase.js"></script>
+  <script type="module" src="/js/app.js"></script>
+  <style>
+    .corral-clave { font-size: 1.15rem; font-weight: 700; }
+    .corral-clave--sin { font-weight: 400; }
+  </style>
+</head>
+<body class="tema-oscuro app pantalla-formulario con-nav-inferior">
+
+  <header class="barra">
+    <h1 class="barra__titulo">Nidos activos</h1>
+    <div class="barra__acciones">
+      <span class="estado-sync" id="estado-sync">
+        <span aria-hidden="true" id="estado-sync-icono">✓</span>
+        <span id="estado-sync-texto">En línea</span>
+      </span>
+    </div>
+  </header>
+
+  <div class="franja-offline" role="status">Sin conexión. Ves la copia guardada en el teléfono.</div>
+
+  <div class="contenedor">
+    <main class="contenido-formulario">
+      <div class="fila entre">
+        <div>
+          <div class="tarjeta__titulo" id="campamento">Tu campamento</div>
+          <div class="pequeno tenue" id="ultima-sync">Sin sincronizar todavía</div>
+        </div>
+        <button class="btn btn--secundario btn--pequeno" type="button" id="btn-actualizar">Actualizar</button>
+      </div>
+
+      <a class="btn btn--bloque mt-5" href="/nuevo-nido.html">Nuevo nido</a>
+
+      <div class="campo mt-5">
+        <label class="campo__etiqueta" for="buscar">Buscar</label>
+        <input class="campo__control" id="buscar" type="search" autocomplete="off"
+               placeholder="Clave de corral, clave del nido o ubicación">
+      </div>
+
+      <div class="aviso oculto mt-5" id="aviso" role="status"></div>
+
+      <div class="encabezado mt-5">
+        <h2>Activos</h2>
+        <span class="etiqueta oculto" id="contador"></span>
+      </div>
+      <ul class="pila lista-limpia" id="lista-nidos"></ul>
+      <div class="estado-vacio oculto" id="lista-vacia">
+        <div class="estado-vacio__icono" aria-hidden="true">🥚</div>
+        <p class="estado-vacio__titulo" id="vacio-titulo">Sin nidos activos</p>
+        <p class="estado-vacio__texto mb-0" id="vacio-texto">
+          No hay nidos activos guardados en este teléfono. Abre esta pantalla una vez con señal para descargarlos.
+        </p>
+      </div>
+    </main>
+  </div>
+
+  <nav class="nav-inferior" data-activa="nidos"></nav>
+
+  <script type="module">
+    import { listarNidos } from '/js/db.js';
+    import { cargarCatalogo, CAMPO_NOMBRE } from '/js/catalogos.js';
+    import { ESTADOS, ETIQUETA_ESTADO, puedeTransicionar } from '/js/estados-nido.js';
+    import { coincideBusqueda, filtrarNidosActivos, ordenarNidos } from '/js/nidos-activos.js';
+    import { sincronizarNidosActivos, ultimaSincronizacion } from '/js/sync-nidos.js';
+    import { esCoordinador, leerPerfil } from '/js/sesion.js';
+
+    const aviso = document.getElementById('aviso');
+    const inputBuscar = document.getElementById('buscar');
+    const botonActualizar = document.getElementById('btn-actualizar');
+
+    function mostrarAviso(texto, tipo) {
+      aviso.textContent = texto;
+      aviso.className = `aviso aviso--${tipo} mt-5`;
+    }
+
+    // 'YYYY-MM-DD' → 'DD/MM/AAAA' sin pasar por Date (evita el desfase de zona horaria).
+    function formatearFecha(fecha) {
+      const [anio, mes, dia] = String(fecha).slice(0, 10).split('-');
+      return `${dia}/${mes}/${anio}`;
+    }
+
+    function linea(texto, clase = 'tarjeta__texto mb-0 mt-3') {
+      const elemento = document.createElement('div');
+      elemento.className = clase;
+      elemento.textContent = texto;
+      return elemento;
+    }
+
+    function etiqueta(texto, clase) {
+      const elemento = document.createElement('span');
+      elemento.className = clase;
+      elemento.textContent = texto;
+      return elemento;
+    }
+
+    // Catálogos desde IndexedDB: funcionan con el modo avión activado.
+    async function leerCatalogos() {
+      const [tramos, especies, campamentos] = await Promise.all(
+        ['tramos', 'especies', 'campamentos'].map((tabla) => cargarCatalogo(tabla)),
+      );
+      const nombres = (registros, tabla) => new Map(registros.map((r) => [r.id, String(r[CAMPO_NOMBRE[tabla]])]));
+      return {
+        tramos: nombres(tramos, 'tramos'),
+        especies: nombres(especies, 'especies'),
+        campamentos: nombres(campamentos, 'campamentos'),
+        campamentoPorTramo: new Map(tramos.filter((t) => t.campamento_id != null).map((t) => [t.id, t.campamento_id])),
+      };
+    }
+
+    function pintarTarjeta(nido, catalogos) {
+      const item = document.createElement('li');
+      item.className = 'tarjeta';
+
+      const fila = document.createElement('div');
+      fila.className = 'fila entre';
+      const titulo = etiqueta(catalogos.especies.get(nido.especie_id) ?? 'Especie', 'tarjeta__titulo');
+      const badges = document.createElement('span');
+      badges.className = 'fila';
+      badges.append(etiqueta(ETIQUETA_ESTADO[nido.estado] ?? nido.estado, {
+        [ESTADOS.EN_CORRAL]: 'etiqueta etiqueta--proceso',
+        [ESTADOS.ECLOSIONADO]: 'etiqueta etiqueta--completado',
+      }[nido.estado] ?? 'etiqueta'));
+      if (nido.conflicto) badges.append(etiqueta('Conflicto', 'etiqueta etiqueta--cancelado'));
+      else if (nido.pendiente_envio || nido.perdida_pendiente) badges.append(etiqueta('Pendiente de envío', 'etiqueta etiqueta--pendiente'));
+      fila.append(titulo, badges);
+      item.append(fila);
+
+      item.append(nido.corral
+        ? linea(`Corral ${nido.corral}`, 'corral-clave mt-3')
+        : linea('Sin corral · sigue en la playa', 'corral-clave corral-clave--sin tenue mt-3'));
+
+      const tramo = catalogos.tramos.get(nido.tramo_id) ?? 'Tramo';
+      item.append(linea(`${tramo} · ${nido.referencia_ubicacion ?? '—'}`));
+
+      if (nido.estado === ESTADOS.EN_CORRAL) {
+        const eclosion = nido.fecha_estimada_eclosion ? formatearFecha(nido.fecha_estimada_eclosion) : '—';
+        item.append(linea(`${nido.huevos_contados ?? '—'} huevos · eclosión estimada ${eclosion}`));
+      }
+      if (nido.estado === ESTADOS.ECLOSIONADO && nido.crias_por_liberar != null) {
+        item.append(linea(`${nido.crias_por_liberar} crías por liberar`));
+      }
+      if (nido.conflicto) {
+        item.append(linea(`El servidor rechazó un cambio (${nido.conflicto.codigo}): ${nido.conflicto.mensaje}`,
+          'tarjeta__texto texto-conflicto mb-0 mt-3'));
+      }
+      item.append(linea(`Clave ${String(nido.clave).slice(0, 8)}`, 'pequeno tenue mono mt-3'));
+
+      const acciones = document.createElement('div');
+      acciones.className = 'fila';
+      const desde = `&desde=activos`;
+      if (puedeTransicionar(nido.estado, ESTADOS.EN_CORRAL)) {
+        const reubicar = document.createElement('a');
+        reubicar.className = 'btn btn--secundario btn--pequeno mt-3';
+        reubicar.href = `/reubicar-nido.html?clave=${encodeURIComponent(nido.clave)}${desde}`;
+        reubicar.textContent = 'Reubicar al corral';
+        acciones.append(reubicar);
+      }
+      // Solo el coordinador; el servidor también lo exige (NE006).
+      if (esCoordinador() && puedeTransicionar(nido.estado, ESTADOS.PERDIDO) && !nido.conflicto) {
+        const perdido = document.createElement('a');
+        perdido.className = 'btn btn--fantasma btn--pequeno mt-3';
+        perdido.href = `/marcar-perdido.html?clave=${encodeURIComponent(nido.clave)}${desde}`;
+        perdido.textContent = 'Marcar como perdido';
+        acciones.append(perdido);
+      }
+      if (acciones.childElementCount > 0) item.append(acciones);
+      return item;
+    }
+
+    function pintarEncabezado(perfil, catalogos) {
+      const campamento = document.getElementById('campamento');
+      if (perfil?.rol === 'coordinador') campamento.textContent = 'Todos los campamentos';
+      else campamento.textContent = catalogos.campamentos.get(perfil?.campamento_id) ?? 'Tu campamento';
+
+      const ultima = ultimaSincronizacion();
+      document.getElementById('ultima-sync').textContent = ultima
+        ? `Actualizado ${new Date(ultima).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}`
+        : 'Sin sincronizar todavía';
+      botonActualizar.disabled = !navigator.onLine;
+    }
+
+    async function pintar() {
+      const perfil = leerPerfil();
+      const [nidos, catalogos] = await Promise.all([listarNidos(), leerCatalogos()]);
+      pintarEncabezado(perfil, catalogos);
+
+      const activos = ordenarNidos(filtrarNidosActivos(nidos, { perfil, campamentoPorTramo: catalogos.campamentoPorTramo }));
+      const visibles = activos.filter((nido) => coincideBusqueda(nido, inputBuscar.value));
+      document.getElementById('lista-nidos').replaceChildren(...visibles.map((nido) => pintarTarjeta(nido, catalogos)));
+
+      const contador = document.getElementById('contador');
+      contador.textContent = visibles.length === activos.length
+        ? `${activos.length}`
+        : `${visibles.length} de ${activos.length}`;
+      contador.classList.toggle('oculto', activos.length === 0);
+
+      const vacio = visibles.length === 0;
+      document.getElementById('lista-vacia').classList.toggle('oculto', !vacio);
+      if (vacio && activos.length > 0) {
+        document.getElementById('vacio-titulo').textContent = 'Sin resultados';
+        document.getElementById('vacio-texto').textContent = 'Ningún nido activo coincide con la búsqueda.';
+      } else if (vacio) {
+        document.getElementById('vacio-titulo').textContent = 'Sin nidos activos';
+        document.getElementById('vacio-texto').textContent = ultimaSincronizacion()
+          ? 'Tu campamento no tiene nidos activos.'
+          : 'No hay nidos activos guardados en este teléfono. Abre esta pantalla una vez con señal para descargarlos.';
+      }
+    }
+
+    inputBuscar.addEventListener('input', () => pintar());
+
+    botonActualizar.addEventListener('click', async () => {
+      botonActualizar.disabled = true;
+      botonActualizar.textContent = 'Actualizando…';
+      const resultado = await sincronizarNidosActivos({ forzar: true });
+      botonActualizar.textContent = 'Actualizar';
+      if (resultado.estado === 'sin_red') mostrarAviso('Sin conexión. Se actualiza solo cuando vuelva la señal.', 'aviso');
+      if (resultado.estado === 'error') mostrarAviso('No se pudieron descargar los nidos. Se muestra la copia del teléfono.', 'error');
+      await pintar();
+    });
+
+    // app.js sincroniza al abrir y al volver la señal; aquí solo se repinta.
+    window.addEventListener('nido:nidos-sincronizados', () => pintar());
+    window.addEventListener('nido:perdidas-actualizadas', () => pintar());
+    window.addEventListener('online', () => pintar());
+    window.addEventListener('offline', () => pintar());
+
+    await pintar();
+
+    // Aviso que dejan reubicar-nido.html y marcar-perdido.html al volver.
+    const parametros = new URLSearchParams(window.location.search);
+    const AVISOS = {
+      reubicado: 'Nido reubicado al corral en el teléfono. Queda pendiente de envío.',
+      perdido: 'Nido marcado como perdido. Si no había señal, se envía al volver.',
+    };
+    if (Object.hasOwn(AVISOS, parametros.get('aviso'))) {
+      mostrarAviso(AVISOS[parametros.get('aviso')], 'exito');
+      history.replaceState(null, '', window.location.pathname);
+    }
+  </script>
+</body>
+</html>

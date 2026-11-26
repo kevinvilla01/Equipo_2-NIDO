@@ -80,7 +80,11 @@
     const form = document.getElementById('form-perdido');
     const boton = document.getElementById('btn-guardar');
     const dialogo = document.getElementById('dialogo-confirmar');
-    const clave = new URLSearchParams(window.location.search).get('clave');
+    const parametrosUrl = new URLSearchParams(window.location.search);
+    const clave = parametrosUrl.get('clave');
+    // Se vuelve a la lista desde la que se entró (HU-13: nidos activos).
+    const DESTINO = parametrosUrl.get('desde') === 'activos' ? '/nidos-activos.html' : '/nuevo-nido.html';
+    document.querySelector('.barra__volver').href = DESTINO;
     // Fecha local: con toISOString() después de las 18:00 en México saldría el día siguiente.
     const fechaPerdida = new Date().toLocaleDateString('en-CA');
 
@@ -216,7 +220,7 @@
           new Promise((resolve) => setTimeout(resolve, 5000)),
         ]);
       }
-      window.location.href = '/nuevo-nido.html?aviso=perdido';
+      window.location.href = `${DESTINO}?aviso=perdido`;
     });
   </script>
 </body>

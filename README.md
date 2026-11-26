@@ -107,14 +107,16 @@ Lo que cada rol puede hacer en el servidor (RLS + GRANTs, migración `auth_3`). 
 |---|---|---|
 | `usuarios` | La propia fila; el coordinador, todas | Nadie desde el cliente (Edge Function `usuarios-admin`) |
 | `directorio_usuarios` (vista) | Todos (`id`, `nombre`, `activo`) | — |
+| `campamentos` | Todos | Solo el coordinador |
 | `especies`, `tramos` | Todos | Solo el coordinador |
-| `nidos` | Todos | Nadie directo; solo RPC: `reubicar_nido` y `marcar_nido_perdido` (esta, solo el coordinador) |
+| `nidos` | El coordinador, todos; el voluntario, solo los de tramos de **su campamento** (HU-13) | Nadie directo; solo RPC: `reubicar_nido` y `marcar_nido_perdido` (esta, solo el coordinador) |
+| `nidos_activos` (vista, `security_invoker`) | Igual que `nidos`: aplica su RLS | — |
 | `liberaciones` | Todos | Insertar, solo a nombre propio (`responsable_id`) |
 | `patrullajes` | Todos | Insertar (el servidor llena `creado_por`); editar y borrar: quien lo creó, un voluntario asignado o el coordinador |
 | `patrullaje_voluntario` | Todos | Asignar y quitar: quien puede editar ese patrullaje |
 | `keepalive` | Todos, incluido `anon` | — |
 
-Funciones para políticas y RPC: `public.es_coordinador()` y `public.usuario_actual_id()`.
+Funciones para políticas y RPC: `public.es_coordinador()`, `public.usuario_actual_id()` y `public.campamento_actual_id()` (HU-13).
 
 ### Tablas y funciones nuevas
 
@@ -168,6 +170,7 @@ Los cambios al esquema de Supabase viven en `supabase/migrations/` y se corren *
 | `20261116000100_auth_2_cerrar_usuarios.sql` | Auth | RLS de `usuarios`, trigger `usuarios_proteger`, borra `usuarios.password`. |
 | `20261116000200_auth_3_politicas_tablas.sql` | Auth | Políticas y GRANTs del resto de tablas, `patrullajes.creado_por`, default privileges. |
 | `20261126000000_hu12_nido_perdido.sql` | HU-12 | `fecha_perdida`, `perdido_por`, CHECKs de causa, trigger con `eclosionado → perdido` y nido perdido cerrado (NE005), RPC `marcar_nido_perdido`. Va después de las de Auth. |
+| `20261127000000_hu13_nidos_activos.sql` | HU-13 | Tabla `campamentos`, `tramos.campamento_id` y `usuarios.campamento_id` (default: el primer campamento), `campamento_actual_id()`, RLS de `nidos` por campamento y vista `nidos_activos`. Va después de la de HU-12 y **antes** de desplegar el frontend. |
 
 Las de Auth se corren en un orden fijo, intercaladas con el script de cuentas y el despliegue: ver [Despliegue del cambio](#despliegue-del-cambio-una-sola-vez-en-este-orden).
 
@@ -253,3 +256,16 @@ const { data, error } = await supabase.rpc('marcar_nido_perdido', {
 | Éxito | Sale de la cola; el nido deja de mostrarse como "pendiente de envío". |
 | `NE002`–`NE006`, `22P02` | Sale de la cola y el nido queda con `conflicto: { codigo, mensaje, en }`, visible en la lista. |
 | Red, 5xx, JWT vencido, `NE001` | Se queda en la cola y se reintenta. `NE001` se resuelve cuando HU-16 suba el nido. |
+
+## Nidos activos sin conexión (HU-13)
+
+Pantalla `nidos-activos.html` (pestaña **Nidos**). Lista los nidos activos del campamento desde IndexedDB, así que funciona con el modo avión. Cada tarjeta muestra el estado y la clave de corral, y permite reubicar (y marcar perdido, al coordinador) sin señal.
+
+- **Activo** = no perdido ni liberado: `registrado`, `en_corral`, o `eclosionado` con crías por liberar (`crias_vivas` − suma de `liberaciones.cantidad_liberada` > 0, o `crias_vivas` aún sin contar). "Liberado" no es un estado del nido.
+- **Campamento:** el nido hereda el de su tramo. El servidor filtra con RLS (`nidos_leer`), así que también aplica al informe y a liberaciones. En el teléfono, `filtrarNidosActivos()` repite el filtro con `perfil.campamento_id` para los nidos capturados ahí. Las altas de tramos y voluntarios aún no eligen campamento: quedan en el primero (`campamento_por_defecto()`).
+- **Sincronización** (`src/js/sync-nidos.js`): con sesión vigente baja los catálogos (`tramos`, `especies`, `campamentos`, `directorio_usuarios`) y la vista `nidos_activos`, y los guarda en IndexedDB. Corre al abrir cualquier pantalla (como mucho cada 2 min) y siempre al volver la señal (`nido:sesion-vigente`). Al terminar emite `nido:nidos-sincronizados`.
+- **Mezcla** (`fusionarNidosDelServidor()`, probada en `tests/nidos-activos.test.js`):
+  - Un nido con `pendiente_envio`, `perdida_pendiente` o `conflicto` no se toca: gana el cambio del teléfono.
+  - Los nidos bajados se guardan con `pendiente_envio: false` y `origen: 'servidor'`.
+  - Si la respuesta vino completa, se borran los de `origen: 'servidor'` que ya no son activos. Los capturados en el teléfono nunca se borran.
+- **Service worker:** precachea la pantalla y sus módulos (`nido-v10`). Los datos de Supabase no pasan por el SW, porque llevan el JWT del usuario. Se guardan en IndexedDB.
