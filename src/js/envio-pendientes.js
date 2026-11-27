@@ -36,12 +36,25 @@ const ENVIAR = {
     // Un nido reubicado sin señal (HU-10) se sube como registrado; sin esto, al quitarle
     // el pendiente la sincronización de HU-13 le regresaría el estado del servidor y se
     // perdería la reubicación. reubicar_nido es idempotente.
-    if (n.estado === 'en_corral') {
-      return rpc('reubicar_nido', {
+    if (n.estado !== 'en_corral' && n.estado !== 'eclosionado') return fila;
+    let reubicado;
+    try {
+      reubicado = await rpc('reubicar_nido', {
         p_clave: n.clave, p_corral: n.corral, p_huevos: n.huevos_contados, p_fecha_reubicacion: n.fecha_reubicacion,
       });
+    } catch (error) {
+      // Reenvío de un nido que en el servidor ya pasó de corral (HU-11): reubicar_nido
+      // responde NE002 y registrar_eclosion decide si es el mismo dato o un conflicto.
+      if (!(n.estado === 'eclosionado' && fila?.estado === 'eclosionado' && error?.code === 'NE002')) throw error;
     }
-    return fila;
+    if (n.estado === 'en_corral') return reubicado;
+    // HU-11: la eclosión va después de la reubicación (solo se llega desde en_corral).
+    return rpc('registrar_eclosion', {
+      p_clave: n.clave,
+      p_crias_vivas: n.crias_vivas,
+      p_crias_muertas: n.crias_muertas,
+      p_fecha_eclosion: n.fecha_eclosion,
+    });
   },
   liberaciones: (l) => rpc('registrar_liberacion', {
     p_client_id: l.client_id,

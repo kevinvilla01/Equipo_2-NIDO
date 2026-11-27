@@ -88,6 +88,46 @@ export function validarPasoAPerdido(nido, { causa }) {
   return { valido: true, datos: { causa } };
 }
 
+// Acepta 0: puede no haber crías vivas o muertas.
+function aEnteroNoNegativo(valor) {
+  if (typeof valor === 'number') return Number.isInteger(valor) && valor >= 0 ? valor : null;
+  if (typeof valor !== 'string' || !/^\s*\d+\s*$/.test(valor)) return null;
+  const numero = Number(valor);
+  return Number.isSafeInteger(numero) ? numero : null;
+}
+
+// Valida el paso a eclosionado (HU-11): solo desde en_corral, crías vivas y muertas
+// obligatorias y su suma no mayor que los huevos registrados. Mismas reglas que
+// registrar_eclosion() en supabase/migrations/20261129000000_hu11_eclosion.sql.
+export function validarPasoAEclosionado(nido, { vivas, muertas } = {}) {
+  if (estaCerrado(nido)) {
+    return { valido: false, errores: { estado: 'Este nido está perdido y no se puede modificar.' } };
+  }
+  if (!puedeTransicionar(nido?.estado, ESTADOS.ECLOSIONADO)) {
+    const actual = ETIQUETA_ESTADO[nido?.estado] ?? nido?.estado;
+    return {
+      valido: false,
+      errores: { estado: `Solo se puede registrar la eclosión de un nido en corral; este está "${actual}".` },
+    };
+  }
+  const errores = {};
+  const totalVivas = aEnteroNoNegativo(vivas);
+  const totalMuertas = aEnteroNoNegativo(muertas);
+  if (totalVivas === null) errores.vivas = 'Escribe las crías vivas (0 o más).';
+  if (totalMuertas === null) errores.muertas = 'Escribe las crías muertas (0 o más).';
+  if (Object.keys(errores).length > 0) return { valido: false, errores };
+  const huevos = nido.huevos_contados;
+  if (!Number.isInteger(huevos) || totalVivas + totalMuertas > huevos) {
+    return {
+      valido: false,
+      errores: {
+        suma: `Crías vivas más muertas (${totalVivas + totalMuertas}) no pueden superar los huevos registrados (${huevos ?? 'sin registrar'}).`,
+      },
+    };
+  }
+  return { valido: true, datos: { vivas: totalVivas, muertas: totalMuertas } };
+}
+
 // Fecha 'YYYY-MM-DD' + días. Se calcula en UTC para que el cambio de horario no
 // mueva el resultado un día. Devuelve null si la fecha o los días no son válidos.
 export function calcularFechaEstimada(fechaReubicacion, diasIncubacion) {

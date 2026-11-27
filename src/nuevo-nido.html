@@ -163,6 +163,7 @@
         const estado = document.createElement('span');
         estado.className = {
           [ESTADOS.EN_CORRAL]: 'etiqueta etiqueta--proceso',
+          [ESTADOS.ECLOSIONADO]: 'etiqueta etiqueta--completado',
           [ESTADOS.PERDIDO]: 'etiqueta etiqueta--cancelado',
         }[nido.estado] ?? 'etiqueta';
         estado.textContent = ETIQUETA_ESTADO[nido.estado] ?? nido.estado;
@@ -180,6 +181,13 @@
           const eclosion = nido.fecha_estimada_eclosion ? formatearFecha(nido.fecha_estimada_eclosion) : '—';
           corral.textContent = `Corral ${nido.corral} · ${nido.huevos_contados} huevos · eclosión estimada ${eclosion}`;
           item.append(corral);
+        }
+        if (nido.estado === ESTADOS.ECLOSIONADO) {
+          const crias = document.createElement('div');
+          crias.className = 'tarjeta__texto mb-0 mt-3';
+          const fecha = nido.fecha_eclosion ? formatearFecha(nido.fecha_eclosion) : '—';
+          crias.textContent = `${nido.crias_vivas ?? '—'} vivas · ${nido.crias_muertas ?? '—'} muertas · eclosión ${fecha}`;
+          item.append(crias);
         }
         if (nido.estado === ESTADOS.PERDIDO) {
           const perdida = document.createElement('div');
@@ -201,6 +209,14 @@
           reubicar.href = `/reubicar-nido.html?clave=${encodeURIComponent(nido.clave)}`;
           reubicar.textContent = 'Reubicar al corral';
           item.append(reubicar);
+        }
+        // HU-11: de corral a eclosionado.
+        if (puedeTransicionar(nido.estado, ESTADOS.ECLOSIONADO) && !nido.conflicto) {
+          const eclosion = document.createElement('a');
+          eclosion.className = 'btn btn--secundario btn--pequeno mt-3';
+          eclosion.href = `/registrar-eclosion.html?clave=${encodeURIComponent(nido.clave)}`;
+          eclosion.textContent = 'Registrar eclosión';
+          item.append(eclosion);
         }
         // Solo el coordinador; el servidor también lo exige (NE006).
         if (esCoordinador() && puedeTransicionar(nido.estado, ESTADOS.PERDIDO)) {
@@ -270,11 +286,12 @@
     }
     await pintarLista();
 
-    // Aviso que deja reubicar-nido.html al volver; se quita de la URL para no repetirlo al recargar.
+    // Aviso que dejan reubicar-nido.html, registrar-eclosion.html y marcar-perdido.html al volver; se quita de la URL para no repetirlo al recargar.
     const parametros = new URLSearchParams(window.location.search);
     const AVISOS = {
       reubicado: 'Nido reubicado al corral en el teléfono. Queda pendiente de envío.',
       perdido: 'Nido marcado como perdido. Si no había señal, se envía al volver.',
+      eclosionado: 'Eclosión registrada. Si no había señal, se envía al volver.',
     };
     if (Object.hasOwn(AVISOS, parametros.get('aviso'))) {
       mostrarAviso(AVISOS[parametros.get('aviso')], 'exito');
