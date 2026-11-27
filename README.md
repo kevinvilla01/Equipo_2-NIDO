@@ -109,7 +109,7 @@ Lo que cada rol puede hacer en el servidor (RLS + GRANTs, migración `auth_3`). 
 | `directorio_usuarios` (vista) | Todos (`id`, `nombre`, `activo`) | — |
 | `campamentos` | Todos | Solo el coordinador |
 | `especies`, `tramos` | Todos | Solo el coordinador |
-| `nidos` | El coordinador, todos; el voluntario, solo los de tramos de **su campamento** (HU-13) | Nadie directo; solo RPC: `reubicar_nido` y `marcar_nido_perdido` (esta, solo el coordinador) |
+| `nidos` | El coordinador, todos; el voluntario, solo los de tramos de **su campamento** (HU-13) | Nadie directo; solo RPC: `registrar_nido`, `reubicar_nido`, `registrar_eclosion` y `marcar_nido_perdido` (esta, solo el coordinador) |
 | `nidos_activos` (vista, `security_invoker`) | Igual que `nidos`: aplica su RLS | — |
 | `liberaciones` | Todos | Insertar, solo a nombre propio (`responsable_id`) |
 | `patrullajes` | Todos | Insertar (el servidor llena `creado_por`); editar y borrar: quien lo creó, un voluntario asignado o el coordinador |
@@ -172,6 +172,7 @@ Los cambios al esquema de Supabase viven en `supabase/migrations/` y se corren *
 | `20261126000000_hu12_nido_perdido.sql` | HU-12 | `fecha_perdida`, `perdido_por`, CHECKs de causa, trigger con `eclosionado → perdido` y nido perdido cerrado (NE005), RPC `marcar_nido_perdido`. Va después de las de Auth. |
 | `20261127000000_hu13_nidos_activos.sql` | HU-13 | Tabla `campamentos`, `tramos.campamento_id` y `usuarios.campamento_id` (default: el primer campamento), `campamento_actual_id()`, RLS de `nidos` por campamento y vista `nidos_activos`. Va después de la de HU-12 y **antes** de desplegar el frontend. |
 | `20261128000000_hu16_envio_pendientes.sql` | HU-16 | `client_id` en `patrullajes` y `liberaciones`, `nidos.creado_por` y RPCs idempotentes `registrar_patrullaje`, `registrar_nido`, `registrar_liberacion`. |
+| `20261129000000_hu11_eclosion.sql` | HU-11 | `crias_muertas` y `fecha_eclosion` (y `crias_vivas` si faltara), CHECK de crías no negativas, trigger que valida la eclosión (vivas + muertas ≤ huevos), RPC `registrar_eclosion` y vista `nidos_activos` recreada con las columnas nuevas. Va después de la de HU-16. |
 
 Las de Auth se corren en un orden fijo, intercaladas con el script de cuentas y el despliegue: ver [Despliegue del cambio](#despliegue-del-cambio-una-sola-vez-en-este-orden).
 
@@ -186,7 +187,7 @@ registrado ──► en_corral ──► eclosionado
 `perdido` es final: el nido queda **cerrado** y el servidor rechaza cualquier cambio o borrado (`NE005`), venga de donde venga. La tabla de transiciones está en dos lugares que deben coincidir:
 
 - **Cliente:** `src/js/estados-nido.js` (`TRANSICIONES`, probado en `tests/estados-nido.test.js`).
-- **Servidor:** trigger `nidos_validar_transicion` sobre `public.nidos`. Valida **cualquier** escritura (REST, RPC, SQL Editor, `service_role`): un nido solo puede insertarse como `registrado` y solo cambia de estado por una transición permitida. Al pasar a `en_corral` el servidor recalcula `fecha_estimada_eclosion = fecha_reubicacion + especies.dias_incubacion_estimados` e ignora la que mande el cliente. Al pasar a `perdido` exige `causa_perdida` y `fecha_perdida`.
+- **Servidor:** trigger `nidos_validar_transicion` sobre `public.nidos`. Valida **cualquier** escritura (REST, RPC, SQL Editor, `service_role`): un nido solo puede insertarse como `registrado` y solo cambia de estado por una transición permitida. Al pasar a `en_corral` el servidor recalcula `fecha_estimada_eclosion = fecha_reubicacion + especies.dias_incubacion_estimados` e ignora la que mande el cliente. Al pasar a `eclosionado` exige `crias_vivas`, `crias_muertas` (enteros ≥ 0, su suma no mayor que `huevos_contados`) y `fecha_eclosion` (HU-11). Al pasar a `perdido` exige `causa_perdida` y `fecha_perdida`.
 
 Códigos de error del servidor (PostgREST los devuelve como HTTP 400 con `error.code`):
 
@@ -234,6 +235,25 @@ Con cualquier rechazo, HU-16 debe marcar el nido como **conflicto** en IndexedDB
 
 > Seguridad: la función es `SECURITY DEFINER` porque RLS no permite `UPDATE` a `anon`, y una política de `UPDATE` abriría todas las columnas. Dentro valida todos los parámetros, usa `search_path` vacío y bloquea la fila con `FOR UPDATE`; el trigger vuelve a validar la transición. Cualquier usuario con sesión puede reubicar; la restricción por rol solo aplica a `marcar_nido_perdido`.
 
+### RPC `registrar_eclosion` (HU-11)
+
+Pantalla `registrar-eclosion.html` (botón **Registrar eclosión** en los nidos en corral, en *Nidos* y en *Nuevo nido*). Funciona sin señal: guarda el nido como `eclosionado` en IndexedDB con `pendiente_envio: true` y `crias_por_liberar = crias_vivas`, para que la liberación sin señal ya lo ofrezca. Con señal se envía en ese momento; si no, con **Enviar pendientes**.
+
+```js
+const { data, error } = await supabase.rpc('registrar_eclosion', {
+  p_clave: nido.clave,           // text
+  p_crias_vivas: 72,             // integer >= 0
+  p_crias_muertas: 8,            // integer >= 0; vivas + muertas <= huevos_contados
+  p_fecha_eclosion: '2026-11-29' // 'YYYY-MM-DD', fecha local; no futura ni anterior a la reubicación
+});
+```
+
+- Solo desde `en_corral` (`NE002`). Cualquier usuario con sesión, pero un voluntario solo con nidos de su campamento (`NE003`). Sin sesión, `NE008`.
+- **Idempotente:** si el nido ya está eclosionado con los mismos datos, devuelve la fila sin cambios; con otros datos, `NE002`.
+- Rechazos: `NE001` (el nido aún no se sube), `NE003` (crías vacías o negativas, suma mayor que los huevos, fecha inválida), `NE005` (nido perdido).
+- En **Enviar pendientes** un nido eclosionado se manda como `registrar_nido` → `reubicar_nido` → `registrar_eclosion`. Si en un reenvío el servidor ya lo tiene eclosionado, el `NE002` de `reubicar_nido` se ignora y decide `registrar_eclosion`.
+- La validación del cliente es `validarPasoAEclosionado()` de `src/js/estados-nido.js` (probada en `tests/estados-nido.test.js`).
+
 ### RPC `marcar_nido_perdido` (HU-12)
 
 Solo el **coordinador**. El servidor lo comprueba con `es_coordinador()`, que lee `usuarios` por `auth.uid()` del JWT; nada de lo que mande el cliente cuenta. Un voluntario que llame a la API directo recibe `NE006`.
@@ -269,7 +289,7 @@ Pantalla `nidos-activos.html` (pestaña **Nidos**). Lista los nidos activos del 
   - Un nido con `pendiente_envio`, `perdida_pendiente` o `conflicto` no se toca: gana el cambio del teléfono.
   - Los nidos bajados se guardan con `pendiente_envio: false` y `origen: 'servidor'`.
   - Si la respuesta vino completa, se borran los de `origen: 'servidor'` que ya no son activos. Los capturados en el teléfono nunca se borran.
-- **Service worker:** precachea la pantalla y sus módulos (`nido-v10`). Los datos de Supabase no pasan por el SW, porque llevan el JWT del usuario. Se guardan en IndexedDB.
+- **Service worker:** precachea la pantalla y sus módulos (`nido-v11`). Los datos de Supabase no pasan por el SW, porque llevan el JWT del usuario. Se guardan en IndexedDB.
 
 ### Enviar pendientes (HU-16)
 

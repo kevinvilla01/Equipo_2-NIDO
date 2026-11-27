@@ -8,6 +8,7 @@ import {
   validarReubicacion,
   validarPasoACorral,
   calcularFechaEstimada,
+  validarPasoAEclosionado,
 } from '../src/js/estados-nido.js';
 
 test('registrado → en_corral es una transición válida', () => {
@@ -135,4 +136,37 @@ test('reubicar sigue siendo solo desde registrado (perdido incluido)', () => {
   const resultado = validarPasoACorral({ estado: 'perdido' }, { corral: 'C-1', huevos: 10 });
   assert.equal(resultado.valido, false);
   assert.ok(resultado.errores.estado);
+});
+
+// HU-11 · Eclosión.
+const enCorral = { estado: 'en_corral', huevos_contados: 90 };
+
+test('eclosión válida desde en_corral normaliza vivas y muertas', () => {
+  assert.deepEqual(validarPasoAEclosionado(enCorral, { vivas: ' 70 ', muertas: '20' }),
+    { valido: true, datos: { vivas: 70, muertas: 20 } });
+  assert.deepEqual(validarPasoAEclosionado(enCorral, { vivas: 0, muertas: 0 }),
+    { valido: true, datos: { vivas: 0, muertas: 0 } });
+});
+
+test('eclosión exige vivas y muertas; ninguna puede quedar vacía', () => {
+  for (const [vivas, muertas] of [['', '5'], ['5', ''], [undefined, 5], [5, null], ['-1', '3'], ['2.5', '1'], ['abc', '1']]) {
+    const resultado = validarPasoAEclosionado(enCorral, { vivas, muertas });
+    assert.equal(resultado.valido, false, `${vivas}/${muertas}`);
+    assert.ok(resultado.errores.vivas || resultado.errores.muertas, `${vivas}/${muertas}`);
+  }
+});
+
+test('la suma de vivas más muertas no puede superar los huevos', () => {
+  const resultado = validarPasoAEclosionado(enCorral, { vivas: 80, muertas: 11 });
+  assert.equal(resultado.valido, false);
+  assert.match(resultado.errores.suma, /91.*90/);
+  assert.equal(validarPasoAEclosionado(enCorral, { vivas: 80, muertas: 10 }).valido, true);
+});
+
+test('solo se pasa a eclosionado desde en_corral', () => {
+  for (const estado of ['registrado', 'eclosionado', 'perdido', 'inventado']) {
+    const resultado = validarPasoAEclosionado({ estado, huevos_contados: 90 }, { vivas: 1, muertas: 1 });
+    assert.equal(resultado.valido, false, estado);
+    assert.ok(resultado.errores.estado, estado);
+  }
 });

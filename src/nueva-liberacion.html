@@ -173,7 +173,7 @@
     async function nidosDelServidor() {
       const { data: nidos, error } = await supabase
         .from('nidos')
-        .select('id, clave, crias_vivas, referencia_ubicacion, tramo_id, especie_id')
+        .select('id, clave, corral, crias_vivas, referencia_ubicacion, tramo_id, especie_id')
         .ilike('estado', ESTADO_ECLOSIONADO);
       if (error) throw error;
       const idsNido = nidos.map((n) => n.id);
@@ -200,12 +200,28 @@
       const nombreTramo = new Map(tramos.map((t) => [t.id, t.nombre]));
       const lista = nidos.map((n) => ({
         clave: n.clave,
+        id: n.id,
+        corral: n.corral,
+        crias_vivas: n.crias_vivas,
         especie: nombreEspecie.get(n.especie_id),
         restantes: n.restantes,
         sitio: [nombreTramo.get(n.tramo_id), n.referencia_ubicacion].filter(Boolean).join(' · ') || null,
       }));
       lista.origen = origen;
       return lista;
+    }
+
+    // Igual que nidos-activos.html: la clave del nido es un UUID, así que se muestran sus
+    // primeros 8 caracteres; si no es UUID se muestra completa y, sin clave, el id.
+    // Ej. "8ea61dff · Corral N-003 · 40 crías (Tortuga Laúd)".
+    function etiquetaNido(nido) {
+      const clave = nido.clave
+        ? (/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(nido.clave) ? nido.clave.slice(0, 8) : nido.clave)
+        : String(nido.id ?? '').slice(0, 8) || 'Nido';
+      const partes = [clave];
+      if (nido.corral) partes.push(`Corral ${nido.corral}`);
+      if (nido.crias_vivas != null) partes.push(textoCrias(nido.crias_vivas));
+      return partes.join(' · ') + (nido.especie ? ` (${nido.especie})` : '');
     }
 
     async function cargarNidos() {
@@ -248,7 +264,7 @@
       nidosDisponibles = nidos
         .map((nido) => ({
           clave: nido.clave,
-          etiqueta: `Nido ${nido.clave}` + (nido.especie ? ` (${nido.especie})` : ''),
+          etiqueta: etiquetaNido(nido),
           restantes: nido.restantes - (sinContar.get(nido.clave) || 0),
           sitio: nido.sitio,
         }))
